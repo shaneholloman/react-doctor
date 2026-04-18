@@ -1,3 +1,4 @@
+export { calculateScore, calculateScoreLocally } from "./utils/calculate-score-browser.js";
 export { diagnose } from "./adapters/browser/diagnose.js";
 export type { BrowserDiagnoseInput, BrowserDiagnoseResult } from "./adapters/browser/diagnose.js";
 export { diagnoseBrowser } from "./adapters/browser/diagnose-browser.js";

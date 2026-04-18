@@ -7,6 +7,7 @@ import { discoverProject } from "./utils/discover-project.js";
 import { loadConfig } from "./utils/load-config.js";
 import { createNodeReadFileLinesSync } from "./utils/read-file-lines-node.js";
 import { resolveLintIncludePaths } from "./utils/resolve-lint-include-paths.js";
+import { calculateScore } from "./utils/calculate-score-node.js";
 import { runKnip } from "./utils/run-knip.js";
 import { runOxlint } from "./utils/run-oxlint.js";
 
@@ -44,6 +45,7 @@ export const diagnose = async (
       readFileLinesSync,
       loadUserConfig: () => userConfig,
       discoverProjectInfo: () => discoverProject(resolvedDirectory),
+      calculateDiagnosticsScore: calculateScore,
       getExtraDiagnostics: () => (isDiffMode ? [] : checkReducedMotion(resolvedDirectory)),
       createRunners: ({ resolvedDirectory: projectRoot, projectInfo, userConfig: config }) => ({
         runLint: () =>

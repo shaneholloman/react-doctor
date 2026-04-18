@@ -1,4 +1,5 @@
 export type { Diagnostic, ProjectInfo, ReactDoctorConfig, ScoreResult } from "./types.js";
+export { calculateScore, calculateScoreLocally } from "./utils/calculate-score-browser.js";
 export type { BrowserDiagnoseInput, BrowserDiagnoseResult } from "./adapters/browser/diagnose.js";
 export { diagnose } from "./adapters/browser/diagnose.js";
 export type { DiagnoseCoreOptions, DiagnoseCoreResult } from "./core/diagnose-core.js";

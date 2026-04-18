@@ -1,6 +1,7 @@
 import type { Diagnostic, ProjectInfo, ReactDoctorConfig } from "../../types.js";
 import type { DiagnoseCoreOptions } from "../../core/diagnose-core.js";
 import { diagnoseCore } from "../../core/diagnose-core.js";
+import { calculateScore as calculateScoreBrowser } from "../../utils/calculate-score-browser.js";
 import { createBrowserReadFileLinesSync } from "./create-browser-read-file-lines.js";
 
 export interface DiagnoseBrowserInput {
@@ -26,6 +27,7 @@ export const diagnoseBrowser = async (
       readFileLinesSync,
       loadUserConfig: () => input.userConfig ?? null,
       discoverProjectInfo: () => input.project,
+      calculateDiagnosticsScore: calculateScoreBrowser,
       createRunners: ({ lintIncludePaths, userConfig }) => ({
         runLint: () =>
           input.runOxlint({

@@ -30,6 +30,7 @@ export interface DiagnoseCoreDeps {
   readFileLinesSync: (filePath: string) => string[] | null;
   loadUserConfig: () => ReactDoctorConfig | null;
   discoverProjectInfo: () => ProjectInfo;
+  calculateDiagnosticsScore: (diagnostics: Diagnostic[]) => Promise<ScoreResult | null>;
   getExtraDiagnostics?: () => Diagnostic[];
   createRunners: (context: DiagnoseRunnerContext) => {
     runLint: () => Promise<Diagnostic[]>;
@@ -95,6 +96,7 @@ export const diagnoseCore = async (
     userConfig,
     readFileLinesSync: deps.readFileLinesSync,
     startTime,
+    calculateDiagnosticsScore: deps.calculateDiagnosticsScore,
   });
 
   return buildDiagnoseResult({
