@@ -53,7 +53,7 @@ export default defineConfig([
     },
     dts: true,
     target: "es2022",
-    platform: "neutral",
+    platform: "browser",
     fixedExtension: false,
   },
   {

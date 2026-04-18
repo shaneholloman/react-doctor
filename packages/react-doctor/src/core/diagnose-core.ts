@@ -1,4 +1,5 @@
 import type { Diagnostic, ProjectInfo, ReactDoctorConfig, ScoreResult } from "../types.js";
+import { buildDiagnoseResult } from "./build-diagnose-result.js";
 import { buildDiagnoseTimedResult } from "./build-result.js";
 import { computeJsxIncludePaths } from "../utils/jsx-include-paths.js";
 
@@ -96,10 +97,10 @@ export const diagnoseCore = async (
     startTime,
   });
 
-  return {
+  return buildDiagnoseResult({
     diagnostics: timed.diagnostics,
     score: timed.score,
     project: projectInfo,
     elapsedMilliseconds: timed.elapsedMilliseconds,
-  };
+  });
 };

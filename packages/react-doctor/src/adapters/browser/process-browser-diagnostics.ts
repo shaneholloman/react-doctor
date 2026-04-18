@@ -1,5 +1,6 @@
 import type { Diagnostic, ReactDoctorConfig, ScoreResult } from "../../types.js";
 import { buildDiagnoseTimedResult } from "../../core/build-result.js";
+import { calculateScore as calculateScoreBrowser } from "../../utils/calculate-score-browser.js";
 import { createBrowserReadFileLinesSync } from "./create-browser-read-file-lines.js";
 
 export interface ProcessBrowserDiagnosticsInput {
@@ -27,6 +28,7 @@ export const processBrowserDiagnostics = async (
     readFileLinesSync,
     startTime: globalThis.performance.now(),
     score: input.score,
+    calculateDiagnosticsScore: calculateScoreBrowser,
   });
   return { diagnostics: timed.diagnostics, score: timed.score };
 };
