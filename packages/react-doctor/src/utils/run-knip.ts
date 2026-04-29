@@ -5,8 +5,11 @@ import { createOptions } from "knip/session";
 import { MAX_KNIP_RETRIES } from "../constants.js";
 import type { Diagnostic, KnipIssueRecords, KnipResults } from "../types.js";
 import { collectUnusedFilePaths } from "./collect-unused-file-paths.js";
+import { extractFailedPluginName } from "./extract-failed-plugin-name.js";
 import { findMonorepoRoot } from "./find-monorepo-root.js";
+import { hasKnipConfig } from "./has-knip-config.js";
 import { isFile } from "./is-file.js";
+import { readPackageJson } from "./read-package-json.js";
 
 const KNIP_CATEGORY_MAP: Record<string, string> = {
   files: "Dead Code",
@@ -76,17 +79,16 @@ const silenced = async <T>(fn: () => Promise<T>): Promise<T> => {
   }
 };
 
-const CONFIG_LOADING_ERROR_PATTERN = /Error loading .*\/([a-z-]+)\.config\./;
-
-const extractFailedPluginName = (error: unknown): string | null => {
-  const match = String(error).match(CONFIG_LOADING_ERROR_PATTERN);
-  return match?.[1] ?? null;
-};
-
 const TSCONFIG_FILENAMES = ["tsconfig.base.json", "tsconfig.json"];
 
 const resolveTsConfigFile = (directory: string): string | undefined =>
   TSCONFIG_FILENAMES.find((filename) => fs.existsSync(path.join(directory, filename)));
+
+const disableAllPlugins = (parsedConfig: Record<string, unknown>): void => {
+  for (const key of Object.keys(parsedConfig)) {
+    parsedConfig[key] = false;
+  }
+};
 
 const runKnipWithOptions = async (
   knipCwd: string,
@@ -103,16 +105,27 @@ const runKnipWithOptions = async (
   );
 
   const parsedConfig = options.parsedConfig as Record<string, unknown>;
+  const disabledPlugins = new Set<string>();
+  let didDisableAllPlugins = false;
 
   for (let attempt = 0; attempt <= MAX_KNIP_RETRIES; attempt++) {
     try {
       return (await silenced(() => main(options))) as KnipResults;
     } catch (error) {
       const failedPlugin = extractFailedPluginName(error);
-      if (!failedPlugin || attempt === MAX_KNIP_RETRIES) {
+      if (failedPlugin && !disabledPlugins.has(failedPlugin)) {
+        disabledPlugins.add(failedPlugin);
+        parsedConfig[failedPlugin] = false;
+        continue;
+      }
+
+      // HACK: as a last resort, disable every plugin so file-only dead code
+      // detection still runs even when a plugin config we can't identify fails.
+      if (didDisableAllPlugins || attempt === MAX_KNIP_RETRIES) {
         throw error;
       }
-      parsedConfig[failedPlugin] = false;
+      disableAllPlugins(parsedConfig);
+      didDisableAllPlugins = true;
     }
   }
 
@@ -124,6 +137,28 @@ const hasNodeModules = (directory: string): boolean => {
   return fs.existsSync(nodeModulesPath) && fs.statSync(nodeModulesPath).isDirectory();
 };
 
+const resolveWorkspaceName = (rootDirectory: string): string => {
+  const packageJsonPath = path.join(rootDirectory, "package.json");
+  const packageJson = isFile(packageJsonPath) ? readPackageJson(packageJsonPath) : {};
+  return packageJson.name ?? path.basename(rootDirectory);
+};
+
+// HACK: knip ignores workspace-local config when run from the monorepo root with
+// --workspace, so prefer the workspace cwd when it owns its config (issue #136).
+const runKnipForProject = async (
+  rootDirectory: string,
+  monorepoRoot: string | null,
+): Promise<KnipResults> => {
+  if (!monorepoRoot || hasKnipConfig(rootDirectory)) {
+    return runKnipWithOptions(rootDirectory);
+  }
+  try {
+    return await runKnipWithOptions(monorepoRoot, resolveWorkspaceName(rootDirectory));
+  } catch {
+    return runKnipWithOptions(rootDirectory);
+  }
+};
+
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
   const monorepoRoot = findMonorepoRoot(rootDirectory);
   const hasInstalledDependencies =
@@ -133,23 +168,7 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
     return [];
   }
 
-  let knipResult: KnipResults;
-
-  if (monorepoRoot) {
-    const packageJsonPath = path.join(rootDirectory, "package.json");
-    const packageJson = isFile(packageJsonPath)
-      ? JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"))
-      : {};
-    const workspaceName = packageJson.name ?? path.basename(rootDirectory);
-
-    try {
-      knipResult = await runKnipWithOptions(monorepoRoot, workspaceName);
-    } catch {
-      knipResult = await runKnipWithOptions(rootDirectory);
-    }
-  } else {
-    knipResult = await runKnipWithOptions(rootDirectory);
-  }
+  const knipResult = await runKnipForProject(rootDirectory, monorepoRoot);
 
   const { issues } = knipResult;
   const diagnostics: Diagnostic[] = [];
