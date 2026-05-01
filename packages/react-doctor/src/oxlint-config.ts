@@ -100,16 +100,75 @@ interface ReactHooksJsPluginEntry {
   specifier: string;
 }
 
+interface ResolvedReactHooksJsPlugin {
+  entry: ReactHooksJsPluginEntry;
+  /** Rule names exported by the loaded plugin (e.g. "void-use-memo"). */
+  availableRuleNames: ReadonlySet<string>;
+}
+
+interface MaybePluginModule {
+  rules?: Record<string, unknown>;
+  default?: { rules?: Record<string, unknown> };
+}
+
+const readPluginRuleNames = (pluginSpecifier: string): ReadonlySet<string> => {
+  // HACK: oxlint resolves the plugin itself at scan time; we just need
+  // a fast-and-dirty rule-name listing to filter our config so we don't
+  // reference rules that don't exist in the user's installed version
+  // (e.g. void-use-memo lives in v7 but not v6 of eslint-plugin-react-hooks,
+  // and our peer range is `^6 || ^7`). Failing to read the module is
+  // non-fatal — we fall back to enabling every rule the user has us
+  // configured for and let oxlint surface the mismatch (which preserves
+  // pre-fix behavior for unknown plugin shapes).
+  try {
+    const pluginModule: MaybePluginModule = esmRequire(pluginSpecifier);
+    const rules = pluginModule.rules ?? pluginModule.default?.rules;
+    if (rules === undefined) return new Set();
+    return new Set(Object.keys(rules));
+  } catch {
+    return new Set();
+  }
+};
+
 const resolveReactHooksJsPlugin = (
   hasReactCompiler: boolean,
   customRulesOnly: boolean,
-): ReactHooksJsPluginEntry | null => {
+): ResolvedReactHooksJsPlugin | null => {
   if (!hasReactCompiler || customRulesOnly) return null;
+  let pluginSpecifier: string;
   try {
-    return { name: "react-hooks-js", specifier: esmRequire.resolve("eslint-plugin-react-hooks") };
+    pluginSpecifier = esmRequire.resolve("eslint-plugin-react-hooks");
   } catch {
     return null;
   }
+  return {
+    entry: { name: "react-hooks-js", specifier: pluginSpecifier },
+    availableRuleNames: readPluginRuleNames(pluginSpecifier),
+  };
+};
+
+const filterRulesToAvailable = (
+  rules: Record<string, RuleSeverity>,
+  pluginNamespace: string,
+  availableRuleNames: ReadonlySet<string>,
+): Record<string, RuleSeverity> => {
+  // Empty `availableRuleNames` means we couldn't introspect the plugin
+  // (e.g. exotic export shape). Fall back to the unfiltered rule set so
+  // we don't silently disable rules in supported configurations.
+  if (availableRuleNames.size === 0) return rules;
+  const ruleKeyPrefix = `${pluginNamespace}/`;
+  const filtered: Record<string, RuleSeverity> = {};
+  for (const [ruleKey, severity] of Object.entries(rules)) {
+    if (!ruleKey.startsWith(ruleKeyPrefix)) {
+      filtered[ruleKey] = severity;
+      continue;
+    }
+    const ruleName = ruleKey.slice(ruleKeyPrefix.length);
+    if (availableRuleNames.has(ruleName)) {
+      filtered[ruleKey] = severity;
+    }
+  }
+  return filtered;
 };
 
 const TANSTACK_QUERY_RULES: Record<string, RuleSeverity> = {
@@ -287,12 +346,23 @@ export const createOxlintConfig = ({
 }: OxlintConfigOptions) => {
   // HACK: REACT_COMPILER_RULES live under the `react-hooks-js` plugin
   // namespace, which is provided by the (optional peer) eslint-plugin-react-hooks
-  // package. If the user has React Compiler in their project but hasn't
-  // installed eslint-plugin-react-hooks, oxlint would error with
-  // "react-hooks-js not found" because the rules reference an unloaded
-  // plugin. Gate the rules on successful plugin resolution so a missing
-  // optional peer just silently skips the React Compiler rule set.
+  // package. Two failure modes oxlint won't tolerate:
+  //   1. plugin missing entirely → "Plugin 'react-hooks-js' not found" (#141)
+  //   2. plugin installed but at an older version that lacks one of our
+  //      configured rules → "Rule '<rule>' not found in plugin 'react-hooks-js'"
+  //      (e.g. v6 has no `void-use-memo`, peer range is `^6 || ^7`)
+  // Gate the rules on successful plugin resolution AND filter to the
+  // rule names the loaded plugin actually exports. A missing optional
+  // peer or version drift then silently skips just the affected rules
+  // instead of crashing the whole scan.
   const reactHooksJsPlugin = resolveReactHooksJsPlugin(hasReactCompiler, customRulesOnly);
+  const reactCompilerRules = reactHooksJsPlugin
+    ? filterRulesToAvailable(
+        REACT_COMPILER_RULES,
+        "react-hooks-js",
+        reactHooksJsPlugin.availableRuleNames,
+      )
+    : {};
   return {
     categories: {
       correctness: "off",
@@ -304,11 +374,11 @@ export const createOxlintConfig = ({
       nursery: "off",
     },
     plugins: customRulesOnly ? [] : ["react", "jsx-a11y"],
-    jsPlugins: reactHooksJsPlugin ? [reactHooksJsPlugin, pluginPath] : [pluginPath],
+    jsPlugins: reactHooksJsPlugin ? [reactHooksJsPlugin.entry, pluginPath] : [pluginPath],
     rules: {
       ...(customRulesOnly ? {} : BUILTIN_REACT_RULES),
       ...(customRulesOnly ? {} : BUILTIN_A11Y_RULES),
-      ...(reactHooksJsPlugin ? REACT_COMPILER_RULES : {}),
+      ...reactCompilerRules,
       ...GLOBAL_REACT_DOCTOR_RULES,
       ...(framework === "nextjs" ? NEXTJS_RULES : {}),
       ...(framework === "expo" || framework === "react-native" ? REACT_NATIVE_RULES : {}),

@@ -17,7 +17,12 @@
  *   #141 — REACT_COMPILER_RULES must not be enabled in the oxlint config
  *          unless the `react-hooks-js` plugin (eslint-plugin-react-hooks,
  *          an optional peer) actually resolved — otherwise oxlint errors
- *          with "react-hooks-js not found"
+ *          with "Plugin 'react-hooks-js' not found".
+ *          Additionally, when the plugin DOES resolve we must filter the
+ *          rule list to only the names the loaded version actually
+ *          exports — v6 lacks `void-use-memo`, peer is `^6 || ^7`, so a
+ *          v6 user with React Compiler would otherwise hit
+ *          "Rule 'void-use-memo' not found in plugin 'react-hooks-js'".
  */
 
 import { spawnSync } from "node:child_process";
@@ -313,5 +318,31 @@ describe("issue #141: oxlint config must not reference unloaded plugins", () => 
 
     expect(reactHooksJsRuleKeys).toHaveLength(0);
     expect(hasReactHooksJsPluginEntry).toBe(false);
+  });
+
+  it("only enables react-hooks-js rules that the resolved plugin actually exports", async () => {
+    // The workspace pins eslint-plugin-react-hooks@7, so every
+    // configured react-hooks-js/* rule MUST exist in the loaded
+    // module's `rules` map. A future plugin upgrade that drops one of
+    // our rules would otherwise sneak past unit tests and crash
+    // real-world scans with "Rule '<name>' not found in plugin
+    // 'react-hooks-js'".
+    const config = createOxlintConfig({
+      pluginPath: "/tmp/react-doctor-plugin.js",
+      framework: "unknown",
+      hasReactCompiler: true,
+      hasTanStackQuery: false,
+    });
+    const pluginModule = await import("eslint-plugin-react-hooks");
+    const availableRuleNames = new Set(
+      Object.keys((pluginModule.default ?? pluginModule).rules ?? {}),
+    );
+    const enabledRuleNames = Object.keys(config.rules)
+      .filter((ruleKey) => ruleKey.startsWith("react-hooks-js/"))
+      .map((ruleKey) => ruleKey.replace(/^react-hooks-js\//, ""));
+    expect(enabledRuleNames.length).toBeGreaterThan(0);
+    for (const ruleName of enabledRuleNames) {
+      expect(availableRuleNames.has(ruleName)).toBe(true);
+    }
   });
 });
