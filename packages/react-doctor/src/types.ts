@@ -18,6 +18,7 @@ export interface ProjectInfo {
   framework: Framework;
   hasTypeScript: boolean;
   hasReactCompiler: boolean;
+  hasTanStackQuery: boolean;
   sourceFileCount: number;
 }
 
@@ -61,7 +62,6 @@ export interface Diagnostic {
   line: number;
   column: number;
   category: string;
-  weight?: number;
 }
 
 export interface PackageJson {
@@ -70,6 +70,8 @@ export interface PackageJson {
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   workspaces?: string[] | { packages?: string[]; catalog?: Record<string, string> };
+  catalog?: unknown;
+  catalogs?: unknown;
 }
 
 export interface DependencyInfo {
@@ -94,10 +96,31 @@ export interface ScoreResult {
   label: string;
 }
 
+export interface DiagnoseOptions {
+  lint?: boolean;
+  deadCode?: boolean;
+  verbose?: boolean;
+  includePaths?: string[];
+  /**
+   * Per-call override for `ReactDoctorConfig.respectInlineDisables`.
+   * See that field's docs for the full contract.
+   */
+  respectInlineDisables?: boolean;
+}
+
+export interface DiagnoseResult {
+  diagnostics: Diagnostic[];
+  score: ScoreResult | null;
+  project: ProjectInfo;
+  elapsedMilliseconds: number;
+}
+
 export interface ScanResult {
   diagnostics: Diagnostic[];
-  scoreResult: ScoreResult | null;
+  score: ScoreResult | null;
   skippedChecks: string[];
+  project: ProjectInfo;
+  elapsedMilliseconds: number;
 }
 
 export interface ScanOptions {
@@ -106,8 +129,10 @@ export interface ScanOptions {
   verbose?: boolean;
   scoreOnly?: boolean;
   offline?: boolean;
+  silent?: boolean;
   includePaths?: string[];
   configOverride?: ReactDoctorConfig | null;
+  respectInlineDisables?: boolean;
 }
 
 export interface DiffInfo {
@@ -172,4 +197,70 @@ export interface ReactDoctorConfig {
   customRulesOnly?: boolean;
   share?: boolean;
   textComponents?: string[];
+  /**
+   * Whether to respect inline `// eslint-disable*` / `// oxlint-disable*`
+   * comments in source files. Default: `true`.
+   *
+   * File-level ignores (`.gitignore`, `.eslintignore`, `.oxlintignore`,
+   * `.prettierignore`, `.gitattributes` `linguist-vendored` /
+   * `linguist-generated`) are ALWAYS honored regardless of this option
+   * — they typically point at vendored or generated code that
+   * genuinely shouldn't be linted at all.
+   *
+   * Set to `false` for "audit mode": every inline suppression is
+   * neutralized so react-doctor reports every diagnostic regardless
+   * of historical hide-comments.
+   */
+  respectInlineDisables?: boolean;
+}
+
+export type JsonReportMode = "full" | "diff" | "staged";
+
+export interface JsonReportDiffInfo {
+  baseBranch: string;
+  currentBranch: string;
+  changedFileCount: number;
+  isCurrentChanges: boolean;
+}
+
+export interface JsonReportProjectEntry {
+  directory: string;
+  project: ProjectInfo;
+  diagnostics: Diagnostic[];
+  score: ScoreResult | null;
+  skippedChecks: string[];
+  elapsedMilliseconds: number;
+}
+
+export interface JsonReportSummary {
+  errorCount: number;
+  warningCount: number;
+  affectedFileCount: number;
+  totalDiagnosticCount: number;
+  score: number | null;
+  scoreLabel: string | null;
+}
+
+export interface JsonReportError {
+  message: string;
+  name: string;
+  chain: string[];
+}
+
+export interface JsonReport {
+  schemaVersion: 1;
+  version: string;
+  ok: boolean;
+  directory: string;
+  mode: JsonReportMode;
+  diff: JsonReportDiffInfo | null;
+  projects: JsonReportProjectEntry[];
+  /**
+   * Flattened across `projects[].diagnostics` for convenience. Equivalent to
+   * `projects.flatMap((project) => project.diagnostics)`.
+   */
+  diagnostics: Diagnostic[];
+  summary: JsonReportSummary;
+  elapsedMilliseconds: number;
+  error: JsonReportError | null;
 }

@@ -9,9 +9,14 @@ import {
 } from "./constants.js";
 import type { EsTreeNode, RuleVisitors } from "./types.js";
 
-export const walkAst = (node: EsTreeNode, visitor: (child: EsTreeNode) => void): void => {
+// HACK: AST is acyclic except for `parent` back-references, which we skip.
+// Visitors may return `false` to prune the subtree below `node` (e.g. to
+// stop walking into nested functions when collecting `await` expressions
+// for the enclosing function only). Returning anything else (including
+// `undefined`, the natural value of statements) continues the walk.
+export const walkAst = (node: EsTreeNode, visitor: (child: EsTreeNode) => boolean | void): void => {
   if (!node || typeof node !== "object") return;
-  visitor(node);
+  if (visitor(node) === false) return;
   for (const key of Object.keys(node)) {
     if (key === "parent") continue;
     const child = node[key];
@@ -207,20 +212,26 @@ const isMutatingDbCall = (node: EsTreeNode): boolean => {
   return property?.type === "Identifier" && MUTATION_METHOD_NAMES.has(property.name);
 };
 
+// HACK: extracted so `findSideEffect` can re-use the EXACT same shape
+// predicate when it goes hunting for the literal method to render in
+// the diagnostic. Previously `findSideEffect` used a looser `key.name
+// === "method"` predicate and could pick a non-Literal `method:` entry
+// (when duplicate keys are present), producing
+// `"fetch() with method undefined"` in the message.
+const isMutatingMethodProperty = (property: EsTreeNode): boolean =>
+  property.type === "Property" &&
+  property.key?.type === "Identifier" &&
+  property.key.name === "method" &&
+  property.value?.type === "Literal" &&
+  typeof property.value.value === "string" &&
+  MUTATING_HTTP_METHODS.has(property.value.value.toUpperCase());
+
 const isMutatingFetchCall = (node: EsTreeNode): boolean => {
   if (node.type !== "CallExpression") return false;
   if (node.callee?.type !== "Identifier" || node.callee.name !== "fetch") return false;
   const optionsArgument = node.arguments?.[1];
   if (!optionsArgument || optionsArgument.type !== "ObjectExpression") return false;
-  return optionsArgument.properties?.some(
-    (property: EsTreeNode) =>
-      property.type === "Property" &&
-      property.key?.type === "Identifier" &&
-      property.key.name === "method" &&
-      property.value?.type === "Literal" &&
-      typeof property.value.value === "string" &&
-      MUTATING_HTTP_METHODS.has(property.value.value.toUpperCase()),
-  );
+  return Boolean(optionsArgument.properties?.some(isMutatingMethodProperty));
 };
 
 export const findSideEffect = (node: EsTreeNode): string | null => {
@@ -234,10 +245,11 @@ export const findSideEffect = (node: EsTreeNode): string | null => {
       const methodName = child.callee.property.name;
       sideEffectDescription = `headers().${methodName}()`;
     } else if (isMutatingFetchCall(child)) {
-      const methodProperty = child.arguments[1].properties.find(
-        (property: EsTreeNode) =>
-          property.key?.type === "Identifier" && property.key.name === "method",
-      );
+      // HACK: re-use the EXACT predicate `isMutatingFetchCall` already
+      // matched on so we can't pick a non-Literal duplicate `method:`
+      // entry by mistake (a looser `key.name === "method"` predicate
+      // would).
+      const methodProperty = child.arguments[1].properties.find(isMutatingMethodProperty);
       sideEffectDescription = `fetch() with method ${methodProperty.value.value}`;
     } else if (isMutatingDbCall(child)) {
       const methodName = child.callee.property.name;
@@ -249,18 +261,55 @@ export const findSideEffect = (node: EsTreeNode): string | null => {
   return sideEffectDescription;
 };
 
+// HACK: collects every locally-bound name introduced by a parameter list,
+// recursing into nested object/array patterns. We need every binding so
+// `noDerivedUseState` can detect e.g. `function Foo({ user: { name } })` →
+// `useState(name)` (false negative if we only added "user").
+const collectPatternNames = (pattern: EsTreeNode | null, into: Set<string>): void => {
+  if (!pattern) return;
+
+  if (pattern.type === "Identifier") {
+    into.add(pattern.name);
+    return;
+  }
+
+  if (pattern.type === "AssignmentPattern") {
+    collectPatternNames(pattern.left, into);
+    return;
+  }
+
+  if (pattern.type === "RestElement") {
+    collectPatternNames(pattern.argument, into);
+    return;
+  }
+
+  if (pattern.type === "ArrayPattern") {
+    for (const element of pattern.elements ?? []) {
+      collectPatternNames(element, into);
+    }
+    return;
+  }
+
+  if (pattern.type === "ObjectPattern") {
+    for (const property of pattern.properties ?? []) {
+      if (property.type === "RestElement") {
+        collectPatternNames(property.argument, into);
+        continue;
+      }
+      if (property.type === "Property") {
+        // The bound name lives in `property.value` (which may itself be
+        // a nested pattern). The `property.key` is the source-side name
+        // and only matters when it equals `property.value` (shorthand).
+        collectPatternNames(property.value, into);
+      }
+    }
+  }
+};
+
 export const extractDestructuredPropNames = (params: EsTreeNode[]): Set<string> => {
   const propNames = new Set<string>();
   for (const param of params) {
-    if (param.type === "ObjectPattern") {
-      for (const property of param.properties ?? []) {
-        if (property.type === "Property" && property.key?.type === "Identifier") {
-          propNames.add(property.key.name);
-        }
-      }
-    } else if (param.type === "Identifier") {
-      propNames.add(param.name);
-    }
+    collectPatternNames(param, propNames);
   }
   return propNames;
 };

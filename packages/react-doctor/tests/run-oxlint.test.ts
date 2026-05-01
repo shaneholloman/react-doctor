@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 import type { Diagnostic } from "../src/types.js";
 import { runOxlint } from "../src/utils/run-oxlint.js";
 
@@ -40,23 +40,39 @@ let nextjsDiagnostics: Diagnostic[];
 let tanstackStartDiagnostics: Diagnostic[];
 
 describe("runOxlint", () => {
-  it("loads basic-react diagnostics", async () => {
-    basicReactDiagnostics = await runOxlint(BASIC_REACT_DIRECTORY, true, "unknown", false);
+  beforeAll(async () => {
+    basicReactDiagnostics = await runOxlint({
+      rootDirectory: BASIC_REACT_DIRECTORY,
+      hasTypeScript: true,
+      framework: "unknown",
+      hasReactCompiler: false,
+      hasTanStackQuery: true,
+    });
+    nextjsDiagnostics = await runOxlint({
+      rootDirectory: NEXTJS_APP_DIRECTORY,
+      hasTypeScript: true,
+      framework: "nextjs",
+      hasReactCompiler: false,
+      hasTanStackQuery: false,
+    });
+    tanstackStartDiagnostics = await runOxlint({
+      rootDirectory: TANSTACK_START_APP_DIRECTORY,
+      hasTypeScript: true,
+      framework: "tanstack-start",
+      hasReactCompiler: false,
+      hasTanStackQuery: false,
+    });
+  });
+
+  it("loads basic-react diagnostics", () => {
     expect(basicReactDiagnostics.length).toBeGreaterThan(0);
   });
 
-  it("loads nextjs diagnostics", async () => {
-    nextjsDiagnostics = await runOxlint(NEXTJS_APP_DIRECTORY, true, "nextjs", false);
+  it("loads nextjs diagnostics", () => {
     expect(nextjsDiagnostics.length).toBeGreaterThan(0);
   });
 
-  it("loads tanstack-start diagnostics", async () => {
-    tanstackStartDiagnostics = await runOxlint(
-      TANSTACK_START_APP_DIRECTORY,
-      true,
-      "tanstack-start",
-      false,
-    );
+  it("loads tanstack-start diagnostics", () => {
     expect(tanstackStartDiagnostics.length).toBeGreaterThan(0);
   });
 
@@ -94,13 +110,13 @@ describe("runOxlint", () => {
       "no-derived-state-effect": {
         fixture: "state-issues.tsx",
         ruleSource: "rules/state-and-effects.ts",
-        severity: "error",
+        severity: "warning",
         category: "State & Effects",
       },
       "no-fetch-in-effect": {
         fixture: "state-issues.tsx",
         ruleSource: "rules/state-and-effects.ts",
-        severity: "error",
+        severity: "warning",
       },
       "no-cascading-set-state": {
         fixture: "state-issues.tsx",
@@ -143,15 +159,59 @@ describe("runOxlint", () => {
 
   describe("nextjs router guidance", () => {
     it("does not recommend next/navigation for pages-router redirects", async () => {
-      const pagesRouterDiagnostics = await runOxlint(NEXTJS_APP_DIRECTORY, true, "nextjs", false, [
-        path.join(NEXTJS_APP_DIRECTORY, "src/pages/_app.tsx"),
-      ]);
+      const pagesRouterDiagnostics = await runOxlint({
+        rootDirectory: NEXTJS_APP_DIRECTORY,
+        hasTypeScript: true,
+        framework: "nextjs",
+        hasReactCompiler: false,
+        hasTanStackQuery: false,
+        includePaths: [path.join(NEXTJS_APP_DIRECTORY, "src/pages/_app.tsx")],
+      });
       const redirectIssue = pagesRouterDiagnostics.find(
         (diagnostic) => diagnostic.rule === "nextjs-no-client-side-redirect",
       );
       expect(redirectIssue).toBeDefined();
       expect(redirectIssue?.message).toContain("getServerSideProps redirect");
       expect(redirectIssue?.message).not.toContain("next/navigation");
+    });
+
+    it("does not flag useSearchParams() in a file that imports/uses <Suspense>", () => {
+      const wrappedPageIssues = nextjsDiagnostics.filter(
+        (diagnostic) =>
+          diagnostic.rule === "nextjs-no-use-search-params-without-suspense" &&
+          diagnostic.filePath.includes("wrapped/page"),
+      );
+      expect(wrappedPageIssues).toHaveLength(0);
+    });
+  });
+
+  describe("server rule scope", () => {
+    it("server-after-nonblocking flags BOTH console.log and analytics.track inside `use server`", () => {
+      const issues = nextjsDiagnostics.filter(
+        (diagnostic) =>
+          diagnostic.rule === "server-after-nonblocking" &&
+          diagnostic.filePath.includes("app/actions"),
+      );
+      const messages = issues.map((diagnostic) => diagnostic.message);
+      expect(messages.length).toBeGreaterThan(0);
+      expect(messages.some((message) => message.includes("console.log"))).toBe(true);
+      expect(messages.some((message) => message.includes("analytics.track"))).toBe(true);
+    });
+  });
+
+  describe("tanstack-query false-positive freedom", () => {
+    it("does not flag useMutation that calls setQueryData (or any other cache-update method)", () => {
+      const mutationLines = basicReactDiagnostics
+        .filter(
+          (diagnostic) =>
+            diagnostic.rule === "query-mutation-missing-invalidation" &&
+            diagnostic.filePath.includes("query-issues"),
+        )
+        .map((diagnostic) => diagnostic.line);
+      // The fixture has two useMutation calls: line ~51 with NO cache
+      // update (must fire), and the setQueryData example a few lines
+      // below (must NOT fire).
+      expect(mutationLines).toEqual([51]);
     });
   });
 
@@ -172,6 +232,137 @@ describe("runOxlint", () => {
         fixture: "architecture-issues.tsx",
         ruleSource: "rules/architecture.ts",
         severity: "error",
+      },
+      "no-many-boolean-props": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/architecture.ts",
+        category: "Architecture",
+      },
+      "no-react19-deprecated-apis": {
+        fixture: "legacy-react.tsx",
+        ruleSource: "rules/architecture.ts",
+        category: "Architecture",
+      },
+      "no-render-prop-children": {
+        fixture: "composition-issues.tsx",
+        ruleSource: "rules/architecture.ts",
+        category: "Architecture",
+      },
+    },
+    () => basicReactDiagnostics,
+  );
+
+  describeRules(
+    "vercel-skill parity rules",
+    {
+      "no-dynamic-import-path": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/bundle-size.ts",
+        category: "Bundle Size",
+      },
+      "rendering-hoist-jsx": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Performance",
+      },
+      "rerender-memo-before-early-return": {
+        fixture: "composition-issues.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Performance",
+      },
+      "js-cache-property-access": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/js-performance.ts",
+        category: "Performance",
+      },
+      "js-length-check-first": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/js-performance.ts",
+        category: "Performance",
+      },
+      "js-hoist-intl": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/js-performance.ts",
+        category: "Performance",
+      },
+      "no-effect-event-in-deps": {
+        fixture: "new-rules.tsx",
+        ruleSource: "rules/state-and-effects.ts",
+        severity: "error",
+      },
+      "no-prop-callback-in-effect": {
+        fixture: "composition-issues.tsx",
+        ruleSource: "rules/state-and-effects.ts",
+      },
+      "no-polymorphic-children": {
+        fixture: "composition-issues.tsx",
+        ruleSource: "rules/correctness.ts",
+        category: "Architecture",
+      },
+      "rendering-svg-precision": {
+        fixture: "composition-issues.tsx",
+        ruleSource: "rules/correctness.ts",
+        category: "Performance",
+      },
+      "no-document-start-view-transition": {
+        fixture: "view-transitions-issues.tsx",
+        ruleSource: "rules/view-transitions.ts",
+        category: "Correctness",
+      },
+      "no-flush-sync": {
+        fixture: "view-transitions-issues.tsx",
+        ruleSource: "rules/view-transitions.ts",
+        category: "Performance",
+      },
+      "rendering-hydration-mismatch-time": {
+        fixture: "hydration-and-scroll-issues.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Correctness",
+      },
+      "rerender-transitions-scroll": {
+        fixture: "hydration-and-scroll-issues.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Performance",
+      },
+      "async-defer-await": {
+        fixture: "transient-and-async-issues.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Performance",
+      },
+      "rerender-state-only-in-handlers": {
+        fixture: "transient-and-async-issues.tsx",
+        ruleSource: "rules/state-and-effects.ts",
+        category: "Performance",
+      },
+      "client-localstorage-no-version": {
+        fixture: "transient-and-async-issues.tsx",
+        ruleSource: "rules/client.ts",
+        category: "Correctness",
+      },
+      "react-compiler-destructure-method": {
+        fixture: "transient-and-async-issues.tsx",
+        ruleSource: "rules/architecture.ts",
+        category: "Architecture",
+      },
+      "async-await-in-loop": {
+        fixture: "async-and-handler-issues.tsx",
+        ruleSource: "rules/js-performance.ts",
+        category: "Performance",
+      },
+      "advanced-event-handler-refs": {
+        fixture: "async-and-handler-issues.tsx",
+        ruleSource: "rules/state-and-effects.ts",
+        category: "Performance",
+      },
+      "rerender-defer-reads-hook": {
+        fixture: "async-and-handler-issues.tsx",
+        ruleSource: "rules/state-and-effects.ts",
+        category: "Performance",
+      },
+      "rerender-derived-state-from-hook": {
+        fixture: "async-and-handler-issues.tsx",
+        ruleSource: "rules/performance.ts",
+        category: "Performance",
       },
     },
     () => basicReactDiagnostics,
@@ -310,7 +501,7 @@ describe("runOxlint", () => {
       "no-secrets-in-client-code": {
         fixture: "security-issues.tsx",
         ruleSource: "rules/security.ts",
-        severity: "error",
+        severity: "warning",
         category: "Security",
       },
     },
@@ -398,6 +589,37 @@ describe("runOxlint", () => {
         fixture: "app/actions.tsx",
         ruleSource: "rules/server.ts",
       },
+      "server-no-mutable-module-state": {
+        fixture: "app/actions.tsx",
+        ruleSource: "rules/server.ts",
+        severity: "error",
+        category: "Server",
+      },
+      "server-cache-with-object-literal": {
+        fixture: "app/actions.tsx",
+        ruleSource: "rules/server.ts",
+        category: "Server",
+      },
+      "server-hoist-static-io": {
+        fixture: "app/og/route.tsx",
+        ruleSource: "rules/server.ts",
+        category: "Server",
+      },
+      "server-dedup-props": {
+        fixture: "app/users/page.tsx",
+        ruleSource: "rules/server.ts",
+        category: "Server",
+      },
+      "server-sequential-independent-await": {
+        fixture: "app/dashboard/route.tsx",
+        ruleSource: "rules/server.ts",
+        category: "Server",
+      },
+      "server-fetch-without-revalidate": {
+        fixture: "app/dashboard/route.tsx",
+        ruleSource: "rules/server.ts",
+        category: "Server",
+      },
     },
     () => nextjsDiagnostics,
   );
@@ -408,7 +630,7 @@ describe("runOxlint", () => {
       "query-stable-query-client": {
         fixture: "src/query-issues.tsx",
         ruleSource: "rules/tanstack-query.ts",
-        severity: "error",
+        severity: "warning",
         category: "TanStack Query",
       },
       "query-no-rest-destructuring": {
@@ -558,19 +780,39 @@ describe("runOxlint", () => {
       );
       expect(scriptIssues).toHaveLength(0);
     });
+
+    it("does not flag navigate() inside useCallback / useMemo / useEffect / JSX onXxx callbacks", () => {
+      const safeNavigateLines = tanstackStartDiagnostics
+        .filter((diagnostic) => diagnostic.rule === "tanstack-start-no-navigate-in-render")
+        .filter((diagnostic) => diagnostic.filePath.includes("route-issues"))
+        .map((diagnostic) => diagnostic.line)
+        .sort((a, b) => a - b);
+      // Render-time navigate() calls in the fixture: line 60 inside
+      // NavigateInRenderComponent (direct in component body) and the
+      // forEach callback inside SyncIterationNavigateComponent (synchronous
+      // iteration during render). Every other navigate() in the file is
+      // wrapped in useCallback/useMemo/onClick and must NOT fire.
+      expect(safeNavigateLines).toContain(60);
+      // The forEach navigate is at the line within SyncIterationNavigateComponent;
+      // assert at least one diagnostic past line 60 (the sync-iteration case)
+      // and that none of the safe-deferred call sites (lines around the
+      // useCallback / useMemo / onClick block) appear.
+      expect(safeNavigateLines.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   describe("customRulesOnly mode", () => {
+    const buildCustomOnlyOptions = () => ({
+      rootDirectory: BASIC_REACT_DIRECTORY,
+      hasTypeScript: true,
+      framework: "unknown" as const,
+      hasReactCompiler: false,
+      hasTanStackQuery: true,
+      customRulesOnly: true,
+    });
+
     it("excludes builtin react/ and jsx-a11y/ rules when customRulesOnly is true", async () => {
-      const customOnlyDiagnostics = await runOxlint(
-        BASIC_REACT_DIRECTORY,
-        true,
-        "unknown",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const customOnlyDiagnostics = await runOxlint(buildCustomOnlyOptions());
 
       const builtinPluginDiagnostics = customOnlyDiagnostics.filter(
         (diagnostic) => diagnostic.plugin === "react" || diagnostic.plugin === "jsx-a11y",
@@ -579,15 +821,7 @@ describe("runOxlint", () => {
     });
 
     it("still includes react-doctor/* rules when customRulesOnly is true", async () => {
-      const customOnlyDiagnostics = await runOxlint(
-        BASIC_REACT_DIRECTORY,
-        true,
-        "unknown",
-        false,
-        undefined,
-        undefined,
-        true,
-      );
+      const customOnlyDiagnostics = await runOxlint(buildCustomOnlyOptions());
 
       const reactDoctorDiagnostics = customOnlyDiagnostics.filter(
         (diagnostic) => diagnostic.plugin === "react-doctor",

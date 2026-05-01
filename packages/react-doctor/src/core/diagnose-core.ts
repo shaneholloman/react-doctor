@@ -1,5 +1,5 @@
+import { buildNoReactDependencyError } from "../constants.js";
 import type { Diagnostic, ProjectInfo, ReactDoctorConfig, ScoreResult } from "../types.js";
-import { buildDiagnoseResult } from "./build-diagnose-result.js";
 import { buildDiagnoseTimedResult } from "./build-result.js";
 import { computeJsxIncludePaths } from "../utils/jsx-include-paths.js";
 
@@ -54,7 +54,7 @@ export const diagnoseCore = async (
   const effectiveDeadCode = options.deadCode ?? userConfig?.deadCode ?? true;
 
   if (!projectInfo.reactVersion) {
-    throw new Error("No React dependency found in package.json");
+    throw new Error(buildNoReactDependencyError(deps.rootDirectory));
   }
 
   const lintIncludePaths =
@@ -87,7 +87,21 @@ export const diagnoseCore = async (
         })
       : Promise.resolve(emptyDiagnostics);
 
-  const [lintDiagnostics, deadCodeDiagnostics] = await Promise.all([lintPromise, deadCodePromise]);
+  // HACK: both runners catch their own errors today, but `Promise.allSettled`
+  // is the load-bearing safety net for the case where a future runner
+  // is refactored without a `.catch()`. Surfacing the rejection via
+  // `console.error` and returning [] keeps `diagnose()` resilient and
+  // is cheaper than a second look at the bug-report log.
+  const [lintSettled, deadCodeSettled] = await Promise.allSettled([lintPromise, deadCodePromise]);
+  const lintDiagnostics = lintSettled.status === "fulfilled" ? lintSettled.value : emptyDiagnostics;
+  const deadCodeDiagnostics =
+    deadCodeSettled.status === "fulfilled" ? deadCodeSettled.value : emptyDiagnostics;
+  if (lintSettled.status === "rejected") {
+    console.error("Lint rejected:", lintSettled.reason);
+  }
+  if (deadCodeSettled.status === "rejected") {
+    console.error("Dead code rejected:", deadCodeSettled.reason);
+  }
   const environmentDiagnostics = deps.getExtraDiagnostics?.() ?? [];
   const mergedDiagnostics = [...lintDiagnostics, ...deadCodeDiagnostics, ...environmentDiagnostics];
   const timed = await buildDiagnoseTimedResult({
@@ -99,10 +113,10 @@ export const diagnoseCore = async (
     calculateDiagnosticsScore: deps.calculateDiagnosticsScore,
   });
 
-  return buildDiagnoseResult({
+  return {
     diagnostics: timed.diagnostics,
     score: timed.score,
     project: projectInfo,
     elapsedMilliseconds: timed.elapsedMilliseconds,
-  });
+  };
 };

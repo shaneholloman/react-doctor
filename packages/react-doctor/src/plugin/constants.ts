@@ -4,8 +4,13 @@ export const RELATED_USE_STATE_THRESHOLD = 5;
 export const DEEP_NESTING_THRESHOLD = 3;
 export const DUPLICATE_STORAGE_READ_THRESHOLD = 2;
 export const SEQUENTIAL_AWAIT_THRESHOLD = 3;
-export const SECRET_MIN_LENGTH_CHARS = 8;
-export const AUTH_CHECK_LOOKAHEAD_STATEMENTS = 3;
+export const PROPERTY_ACCESS_REPEAT_THRESHOLD = 3;
+export const BOOLEAN_PROP_THRESHOLD = 4;
+export const RENDER_PROP_PROLIFERATION_THRESHOLD = 3;
+// Real-world API keys, tokens, and credentials are 24+ chars. 8 chars produced
+// many false positives on UI strings ("loading...", short captions, etc.).
+export const SECRET_MIN_LENGTH_CHARS = 24;
+export const AUTH_CHECK_LOOKAHEAD_STATEMENTS = 10;
 
 export const LAYOUT_PROPERTIES = new Set([
   "width",
@@ -55,8 +60,8 @@ export const HEAVY_LIBRARIES = new Set([
   "draft-js",
 ]);
 
-export const FETCH_CALLEE_NAMES = new Set(["fetch"]);
-export const FETCH_MEMBER_OBJECTS = new Set(["axios", "ky", "got"]);
+export const FETCH_CALLEE_NAMES = new Set(["fetch", "ky", "got", "wretch", "ofetch"]);
+export const FETCH_MEMBER_OBJECTS = new Set(["axios", "ky", "got", "ofetch", "wretch", "request"]);
 export const INDEX_PARAMETER_NAMES = new Set(["index", "idx", "i"]);
 export const BARREL_INDEX_SUFFIXES = [
   "/index",
@@ -226,6 +231,21 @@ export const TANSTACK_QUERY_HOOKS = new Set([
 export const TANSTACK_MUTATION_HOOKS = new Set(["useMutation"]);
 
 export const TANSTACK_QUERY_CLIENT_CLASS = "QueryClient";
+
+// Every queryClient method that legitimately keeps the cache in sync
+// after a mutation. `query-mutation-missing-invalidation` looks for ANY
+// of these inside `onSuccess` (etc.); flagging only `invalidateQueries`
+// produced false positives on `setQueryData`, `resetQueries`, and so on.
+export const QUERY_CACHE_UPDATE_METHODS = new Set([
+  "invalidateQueries",
+  "setQueryData",
+  "setQueriesData",
+  "resetQueries",
+  "refetchQueries",
+  "removeQueries",
+  "cancelQueries",
+  "clear",
+]);
 
 export const STABLE_HOOK_WRAPPERS = new Set(["useState", "useMemo", "useRef"]);
 

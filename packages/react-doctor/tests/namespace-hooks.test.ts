@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Diagnostic } from "../src/types.js";
 import { runOxlint } from "../src/utils/run-oxlint.js";
 
@@ -22,7 +22,13 @@ let diagnostics: Diagnostic[];
 
 describe("namespace hook detection (React.useEffect, React.useState, etc.)", () => {
   it("loads diagnostics from namespace-hooks fixture", async () => {
-    diagnostics = await runOxlint(BASIC_REACT_DIRECTORY, true, "unknown", false);
+    diagnostics = await runOxlint({
+      rootDirectory: BASIC_REACT_DIRECTORY,
+      hasTypeScript: true,
+      framework: "unknown",
+      hasReactCompiler: false,
+      hasTanStackQuery: true,
+    });
     expect(diagnostics.length).toBeGreaterThan(0);
   });
 
