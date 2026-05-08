@@ -1,6 +1,5 @@
-const PERFECT_SCORE = 100;
-const SCORE_GOOD_THRESHOLD = 75;
-const SCORE_OK_THRESHOLD = 50;
+import { PERFECT_SCORE, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD } from "@/constants";
+import { clampScore } from "@/utils/clamp-score";
 
 const BADGE_HEIGHT_PX = 20;
 const LABEL_TEXT = "react doctor";
@@ -37,7 +36,7 @@ const computeScoreTextLength = (scoreText: string): number =>
 
 export const GET = (request: Request): Response => {
   const { searchParams } = new URL(request.url);
-  const score = Math.max(0, Math.min(PERFECT_SCORE, Number(searchParams.get("s")) || 0));
+  const score = clampScore(Number(searchParams.get("s")) || 0);
 
   const scoreText = `${score}/${PERFECT_SCORE}`;
   const scoreColor = getBadgeScoreColor(score);

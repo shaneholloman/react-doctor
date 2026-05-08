@@ -1,8 +1,8 @@
-const PERFECT_SCORE = 100;
+import { PERFECT_SCORE } from "@/constants";
+import { getScoreLabel } from "@/utils/get-score-label";
+
 const ERROR_RULE_PENALTY = 1.5;
 const WARNING_RULE_PENALTY = 0.75;
-const SCORE_GOOD_THRESHOLD = 75;
-const SCORE_OK_THRESHOLD = 50;
 const MAX_REQUEST_BODY_BYTES = 1_000_000;
 const MAX_DIAGNOSTICS_PER_REQUEST = 50_000;
 
@@ -16,12 +16,6 @@ interface DiagnosticInput {
   column: number;
   category: string;
 }
-
-const getScoreLabel = (score: number): string => {
-  if (score >= SCORE_GOOD_THRESHOLD) return "Great";
-  if (score >= SCORE_OK_THRESHOLD) return "Needs work";
-  return "Critical";
-};
 
 const calculateScore = (diagnostics: DiagnosticInput[]): number => {
   if (diagnostics.length === 0) return PERFECT_SCORE;

@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
+import { PERFECT_SCORE, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD } from "@/constants";
+import { clampScore } from "@/utils/clamp-score";
+import { getScoreLabel } from "@/utils/get-score-label";
 
-const PERFECT_SCORE = 100;
-const SCORE_GOOD_THRESHOLD = 75;
-const SCORE_OK_THRESHOLD = 50;
 const IMAGE_WIDTH_PX = 1200;
 const IMAGE_HEIGHT_PX = 630;
 const OG_BRAND_MARK_WIDTH_PX = 244;
@@ -11,12 +11,6 @@ const OG_BRAND_MARK_PATH = "/react-doctor-og-banner.svg";
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_DISPLAY_COUNT = 99_999;
 const OG_CACHE_SECONDS = 60 * 60 * 24;
-
-const getScoreLabel = (score: number): string => {
-  if (score >= SCORE_GOOD_THRESHOLD) return "Great";
-  if (score >= SCORE_OK_THRESHOLD) return "Needs work";
-  return "Critical";
-};
 
 const getScoreColor = (score: number): string => {
   if (score >= SCORE_GOOD_THRESHOLD) return "#4ade80";
@@ -34,7 +28,7 @@ export const GET = (request: Request): ImageResponse => {
     rawProjectName && rawProjectName.length > 0
       ? rawProjectName.slice(0, MAX_PROJECT_NAME_LENGTH)
       : null;
-  const score = Math.max(0, Math.min(PERFECT_SCORE, Number(searchParams.get("s")) || 0));
+  const score = clampScore(Number(searchParams.get("s")) || 0);
   const errorCount = clampDisplayCount(Number(searchParams.get("e")) || 0);
   const warningCount = clampDisplayCount(Number(searchParams.get("w")) || 0);
   const fileCount = clampDisplayCount(Number(searchParams.get("f")) || 0);

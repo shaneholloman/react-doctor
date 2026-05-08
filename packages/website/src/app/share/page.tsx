@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PERFECT_SCORE } from "@/constants";
+import { clampScore } from "@/utils/clamp-score";
 import { getDoctorFace } from "@/utils/get-doctor-face";
 import { getScoreColorClass } from "@/utils/get-score-color-class";
 import { getScoreLabel } from "@/utils/get-score-label";
@@ -23,7 +23,6 @@ interface ShareSearchParams {
   f?: string;
 }
 
-const clampScore = (value: number): number => Math.max(0, Math.min(PERFECT_SCORE, value));
 const clampDisplayCount = (value: number): number =>
   Math.max(0, Math.min(MAX_DISPLAY_COUNT, value));
 const clampProjectName = (value: string | undefined | null): string | null => {
