@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { CANONICAL_GITHUB_URL } from "./constants.js";
 import { runInstallSkill } from "./install-skill.js";
 import { scan } from "./scan.js";
@@ -25,8 +25,10 @@ import { highlighter } from "./utils/highlighter.js";
 import { loadConfig } from "./utils/load-config.js";
 import { logger, setLoggerSilent } from "./utils/logger.js";
 import { encodeAnnotationProperty, encodeAnnotationMessage } from "./utils/annotation-encoding.js";
+import { parseFileLineArgument } from "./utils/parse-file-line-argument.js";
 import { prompts } from "./utils/prompts.js";
 import { selectProjects } from "./utils/select-projects.js";
+import { toRelativePath } from "./utils/to-relative-path.js";
 
 const VERSION = process.env.VERSION ?? "0.0.0";
 
@@ -45,6 +47,8 @@ interface CliFlags {
   respectInlineDisables: boolean;
   project?: string;
   diff?: boolean | string;
+  explain?: string;
+  why?: string;
   failOn: string;
 }
 
@@ -255,6 +259,46 @@ const resolveDiffMode = async (
   return Boolean(shouldScanChangedOnly);
 };
 
+const runExplain = async (
+  fileLineArgument: string,
+  resolvedDirectory: string,
+  userConfig: ReactDoctorConfig | null,
+): Promise<void> => {
+  const { filePath, line } = parseFileLineArgument(fileLineArgument);
+  const scanResult = await scan(resolvedDirectory, {
+    silent: true,
+    offline: true,
+    configOverride: userConfig,
+  });
+
+  const requestedRelativePath = toRelativePath(filePath, resolvedDirectory);
+  const matchingDiagnostics = scanResult.diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.line === line &&
+      toRelativePath(diagnostic.filePath, resolvedDirectory) === requestedRelativePath,
+  );
+
+  if (matchingDiagnostics.length === 0) {
+    logger.log(`No react-doctor diagnostics at ${filePath}:${line}.`);
+    return;
+  }
+
+  for (const diagnostic of matchingDiagnostics) {
+    const ruleIdentifier = `${diagnostic.plugin}/${diagnostic.rule}`;
+    logger.log(`${highlighter.error(ruleIdentifier)} — ${diagnostic.message}`);
+    if (diagnostic.help) logger.dim(`  ${diagnostic.help}`);
+    if (diagnostic.suppressionHint) {
+      logger.break();
+      logger.log(`  Suppression diagnosis: ${diagnostic.suppressionHint}`);
+    } else {
+      logger.dim(
+        "  No nearby react-doctor-disable-next-line comment was detected — add one immediately above this line to suppress.",
+      );
+    }
+    logger.break();
+  }
+};
+
 const validateModeFlags = (flags: CliFlags): void => {
   // HACK: use the same coercion as resolveEffectiveDiff so a bare
   // `--diff false` (or `--diff ""`) is treated as "no diff" and doesn't
@@ -276,6 +320,18 @@ const validateModeFlags = (flags: CliFlags): void => {
   }
   if (flags.annotations && (flags.json || flags.score)) {
     throw new Error("--annotations cannot be combined with --json or --score.");
+  }
+  if (flags.explain !== undefined && flags.why !== undefined) {
+    throw new Error("Use --explain or --why, not both — they're aliases of the same flag.");
+  }
+  const explainArgument = flags.explain ?? flags.why;
+  if (
+    explainArgument !== undefined &&
+    (flags.json || flags.score || flags.annotations || flags.staged)
+  ) {
+    throw new Error(
+      "--explain cannot be combined with --json, --score, --annotations, or --staged.",
+    );
   }
 };
 
@@ -304,6 +360,11 @@ const program = new Command()
   .option("--fail-on <level>", "exit with error code on diagnostics: error, warning, none", "error")
   .option("--annotations", "output diagnostics as GitHub Actions annotations")
   .option(
+    "--explain <file:line>",
+    "diagnose why a rule fired or why a suppression didn't apply at a specific location",
+  )
+  .addOption(new Option("--why <file:line>", "alias for --explain").hideHelp())
+  .option(
     "--respect-inline-disables",
     "respect inline `// eslint-disable*` / `// oxlint-disable*` comments (default)",
   )
@@ -331,6 +392,12 @@ const program = new Command()
       validateModeFlags(flags);
 
       const userConfig = loadConfig(resolvedDirectory);
+
+      const explainArgument = flags.explain ?? flags.why;
+      if (explainArgument !== undefined) {
+        await runExplain(explainArgument, resolvedDirectory, userConfig);
+        return;
+      }
 
       if (!isQuiet) {
         logger.log(`react-doctor v${VERSION}`);

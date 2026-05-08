@@ -62,6 +62,7 @@ export interface Diagnostic {
   line: number;
   column: number;
   category: string;
+  suppressionHint?: string;
 }
 
 export interface PackageJson {
@@ -182,9 +183,15 @@ export interface CleanedDiagnostic {
   help: string;
 }
 
+export interface ReactDoctorIgnoreOverride {
+  files: string[];
+  rules?: string[];
+}
+
 interface ReactDoctorIgnoreConfig {
   rules?: string[];
   files?: string[];
+  overrides?: ReactDoctorIgnoreOverride[];
 }
 
 export interface ReactDoctorConfig {
