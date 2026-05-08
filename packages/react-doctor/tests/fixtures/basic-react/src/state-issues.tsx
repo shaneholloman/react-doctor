@@ -151,6 +151,28 @@ const SubscribeStorePatternComponent = () => {
   return <div>{snapshot}</div>;
 };
 
+declare const post: (url: string, body: unknown) => void;
+
+const EventTriggerStateComponent = () => {
+  const [firstName, setFirstName] = useState("");
+  const [jsonToSubmit, setJsonToSubmit] = useState<{ firstName: string } | null>(null);
+  useEffect(() => {
+    if (jsonToSubmit !== null) {
+      post("/api/register", jsonToSubmit);
+    }
+  }, [jsonToSubmit]);
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        setJsonToSubmit({ firstName });
+      }}
+    >
+      <input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+    </form>
+  );
+};
+
 const UncontrolledInputComponent = () => {
   // HACK: explicit `<string | undefined>` keeps TypeScript happy while the
   // RUNTIME initializer stays undefined — that's what trips the
@@ -186,5 +208,6 @@ export {
   SetStateInRenderComponent,
   ConditionalSetStateInRenderComponent,
   SubscribeStorePatternComponent,
+  EventTriggerStateComponent,
   UncontrolledInputComponent,
 };
