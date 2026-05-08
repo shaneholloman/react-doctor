@@ -480,10 +480,6 @@ Diagnostics from these rules surface inline through your editor's existing ESLin
 
 The full rule list and default severities live in [`oxlint-config.ts`](https://github.com/millionco/react-doctor/blob/main/packages/react-doctor/src/oxlint-config.ts).
 
-## Scores for popular open-source projects
-
-See the live leaderboard at [react.doctor/leaderboard](https://react.doctor/leaderboard) for current scores across React projects.
-
 ## Contributing
 
 Want to contribute? Check out the codebase and submit a PR.
