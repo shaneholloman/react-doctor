@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PERFECT_SCORE } from "@/constants";
+import { clampScore } from "@/utils/clamp-score";
 import { getDoctorFace } from "@/utils/get-doctor-face";
 import { getScoreColorClass } from "@/utils/get-score-color-class";
 
@@ -57,9 +58,10 @@ const fetchLeaderboard = async (): Promise<LeaderboardFile | null> => {
 };
 
 const ScoreBar = ({ score }: { score: number }) => {
-  const filledCount = Math.round((score / PERFECT_SCORE) * SCORE_BAR_WIDTH);
+  const clampedScore = clampScore(score);
+  const filledCount = Math.round((clampedScore / PERFECT_SCORE) * SCORE_BAR_WIDTH);
   const emptyCount = SCORE_BAR_WIDTH - filledCount;
-  const colorClass = getScoreColorClass(score);
+  const colorClass = getScoreColorClass(clampedScore);
 
   return (
     <span className="text-xs sm:text-sm">
