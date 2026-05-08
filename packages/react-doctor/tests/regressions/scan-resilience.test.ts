@@ -19,13 +19,12 @@
  *          string`, killing the whole dead-code step. The sanitizer
  *          strips them before `main()` runs.
  *   #141 — REACT_COMPILER_RULES must not be enabled in the oxlint config
- *          unless the `react-hooks-js` plugin (eslint-plugin-react-hooks,
- *          an optional peer) actually resolved — otherwise oxlint errors
- *          with "Plugin 'react-hooks-js' not found".
+ *          unless the `react-hooks-js` plugin actually resolved —
+ *          otherwise oxlint errors with "Plugin 'react-hooks-js' not found".
  *          Additionally, when the plugin DOES resolve we must filter the
  *          rule list to only the names the loaded version actually
- *          exports — v6 lacks `void-use-memo`, peer is `^6 || ^7`, so a
- *          v6 user with React Compiler would otherwise hit
+ *          exports — older plugin versions can lack newer compiler rules,
+ *          so React Compiler users would otherwise hit
  *          "Rule 'void-use-memo' not found in plugin 'react-hooks-js'".
  */
 
@@ -305,8 +304,8 @@ describe("issue #141: oxlint config must not reference unloaded plugins", () => 
   });
 
   it("REACT_COMPILER_RULES are gated on react-hooks-js plugin resolution", () => {
-    // When eslint-plugin-react-hooks IS resolvable in the workspace
-    // (true here — it's a devDependency), REACT_COMPILER_RULES should
+    // When eslint-plugin-react-hooks IS resolvable from react-doctor,
+    // REACT_COMPILER_RULES should
     // appear AND `react-hooks-js` must be in jsPlugins by name.
     const config = createOxlintConfig({
       pluginPath: "/tmp/react-doctor-plugin.js",
@@ -324,13 +323,13 @@ describe("issue #141: oxlint config must not reference unloaded plugins", () => 
 
     expect(hasReactHooksJsPluginEntry).toBe(true);
     expect(reactHooksJsRuleKeys.length).toBeGreaterThan(0);
+    expect(reactHooksJsRuleKeys.every((ruleKey) => config.rules[ruleKey] === "error")).toBe(true);
   });
 
   it("emits no react-hooks-js rules when customRulesOnly skips the plugin", () => {
     // customRulesOnly forces resolveReactHooksJsPlugin to return null
-    // even when the package is installed. The same code path executes
-    // when the optional peer is genuinely missing, so this case proves
-    // the gating works without uninstalling a workspace dep.
+    // even when the package is installed, so this case proves the gating
+    // works without uninstalling a workspace dependency.
     const config = createOxlintConfig({
       pluginPath: "/tmp/react-doctor-plugin.js",
       framework: "unknown",

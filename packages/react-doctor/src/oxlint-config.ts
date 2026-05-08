@@ -74,22 +74,22 @@ export const TANSTACK_START_RULES: Record<string, RuleSeverity> = {
 };
 
 const REACT_COMPILER_RULES: Record<string, RuleSeverity> = {
-  "react-hooks-js/set-state-in-render": "warn",
-  "react-hooks-js/immutability": "warn",
-  "react-hooks-js/refs": "warn",
-  "react-hooks-js/purity": "warn",
-  "react-hooks-js/hooks": "warn",
-  "react-hooks-js/set-state-in-effect": "warn",
-  "react-hooks-js/globals": "warn",
-  "react-hooks-js/error-boundaries": "warn",
-  "react-hooks-js/preserve-manual-memoization": "warn",
-  "react-hooks-js/unsupported-syntax": "warn",
-  "react-hooks-js/component-hook-factories": "warn",
-  "react-hooks-js/static-components": "warn",
-  "react-hooks-js/use-memo": "warn",
-  "react-hooks-js/void-use-memo": "warn",
-  "react-hooks-js/incompatible-library": "warn",
-  "react-hooks-js/todo": "warn",
+  "react-hooks-js/set-state-in-render": "error",
+  "react-hooks-js/immutability": "error",
+  "react-hooks-js/refs": "error",
+  "react-hooks-js/purity": "error",
+  "react-hooks-js/hooks": "error",
+  "react-hooks-js/set-state-in-effect": "error",
+  "react-hooks-js/globals": "error",
+  "react-hooks-js/error-boundaries": "error",
+  "react-hooks-js/preserve-manual-memoization": "error",
+  "react-hooks-js/unsupported-syntax": "error",
+  "react-hooks-js/component-hook-factories": "error",
+  "react-hooks-js/static-components": "error",
+  "react-hooks-js/use-memo": "error",
+  "react-hooks-js/void-use-memo": "error",
+  "react-hooks-js/incompatible-library": "error",
+  "react-hooks-js/todo": "error",
 };
 
 interface OxlintConfigOptions {
@@ -132,11 +132,11 @@ interface MaybePluginModule {
 
 const readPluginRuleNames = (pluginSpecifier: string): ReadonlySet<string> => {
   // HACK: oxlint resolves the plugin itself at scan time; we just need
-  // a fast-and-dirty rule-name listing to filter our config so we don't
+  // a fast rule-name listing to filter our config so we don't
   // reference rules that don't exist in the user's installed version
-  // (e.g. void-use-memo lives in v7 but not v6 of eslint-plugin-react-hooks,
-  // and our peer range is `^6 || ^7`). Failing to read the module is
-  // non-fatal — we fall back to enabling every rule the user has us
+  // (e.g. older eslint-plugin-react-hooks releases do not expose every
+  // compiler rule). Failing to read the module is non-fatal — we fall
+  // back to enabling every rule we have
   // configured for and let oxlint surface the mismatch (which preserves
   // pre-fix behavior for unknown plugin shapes).
   try {
@@ -449,16 +449,16 @@ export const createOxlintConfig = ({
   extendsPaths = [],
 }: OxlintConfigOptions) => {
   // HACK: REACT_COMPILER_RULES live under the `react-hooks-js` plugin
-  // namespace, which is provided by the (optional peer) eslint-plugin-react-hooks
-  // package. Two failure modes oxlint won't tolerate:
+  // namespace, provided by our bundled eslint-plugin-react-hooks package.
+  // That keeps projects that only install babel-plugin-react-compiler covered.
+  // Two failure modes oxlint won't tolerate:
   //   1. plugin missing entirely → "Plugin 'react-hooks-js' not found" (#141)
   //   2. plugin installed but at an older version that lacks one of our
   //      configured rules → "Rule '<rule>' not found in plugin 'react-hooks-js'"
   //      (e.g. v6 has no `void-use-memo`, peer range is `^6 || ^7`)
   // Gate the rules on successful plugin resolution AND filter to the
-  // rule names the loaded plugin actually exports. A missing optional
-  // peer or version drift then silently skips just the affected rules
-  // instead of crashing the whole scan.
+  // rule names the loaded plugin actually exports. Version drift then
+  // silently skips just the affected rules instead of crashing the whole scan.
   const reactHooksJsPlugin = resolveReactHooksJsPlugin(hasReactCompiler, customRulesOnly);
   const reactCompilerRules = reactHooksJsPlugin
     ? filterRulesToAvailable(
