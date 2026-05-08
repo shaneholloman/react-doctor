@@ -7,9 +7,11 @@
 [![version](https://img.shields.io/npm/v/react-doctor?style=flat&colorA=000000&colorB=000000)](https://npmjs.com/package/react-doctor)
 [![downloads](https://img.shields.io/npm/dt/react-doctor.svg?style=flat&colorA=000000&colorB=000000)](https://npmjs.com/package/react-doctor)
 
-Let coding agents diagnose and fix your React code.
+Your agent writes bad React, this catches it
 
-One command scans your codebase for security, performance, correctness, and architecture issues, then outputs a **0–100 score** with actionable diagnostics.
+One command scans your codebase for security, performance, correctness, and architecture issues, then outputs a **0-100 score** with actionable diagnostics.
+
+Works with Next.js, Vite, React Native, fix your app in minutes
 
 ### [See it in action →](https://react.doctor)
 
