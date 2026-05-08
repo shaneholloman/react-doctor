@@ -390,6 +390,86 @@ export const MUTATING_ROUTE_SEGMENTS = new Set([
 export const EFFECT_HOOK_NAMES = new Set(["useEffect", "useLayoutEffect"]);
 export const HOOKS_WITH_DEPS = new Set(["useEffect", "useLayoutEffect", "useMemo", "useCallback"]);
 
+// Used by `no-effect-chain` to decide whether an effect is doing
+// "real" external-system synchronization (in which case effects on
+// either side of the chain are exempt, per the article's own caveat
+// about cascading network fetches) versus pure internal reactivity
+// (which is the anti-pattern). A cleanup return is the strongest
+// signal; the curated method list covers the rest.
+// Member-method names that, on their own, mark a call as external
+// sync regardless of receiver. These are unambiguous in real React
+// codebases — they don't clash with built-in JS APIs.
+export const EXTERNAL_SYNC_MEMBER_METHOD_NAMES = new Set([
+  // Subscriptions / event listeners
+  "subscribe",
+  "addEventListener",
+  "addListener",
+  "on",
+  "watch",
+  "listen",
+  "sub",
+  // Imperative widget lifecycle (createConnection().connect()/.disconnect())
+  "connect",
+  "disconnect",
+  "open",
+  "close",
+  // Mutating HTTP verbs — `*.post(url, body)` is essentially always
+  // a network call. (`delete` is moved to the ambiguous set below
+  // because Map / Set / URLSearchParams / Headers / FormData /
+  // WeakMap all expose `.delete(...)` as a built-in method.)
+  "fetch",
+  "post",
+  "put",
+  "patch",
+]);
+
+// HACK: `get`, `head`, `options` are HTTP verbs but ALSO names of
+// universal data-structure methods (`Map.get`, `URLSearchParams.get`,
+// `FormData.get`, `Headers.get`, `WeakMap.get`, `Set.has`, etc.). We
+// only treat them as external-sync calls when the receiver is a
+// recognized HTTP-client-shaped name. Lets the `axios.get(...)`
+// cascade case work without false-classifying `params.get('id')` as
+// external sync.
+export const EXTERNAL_SYNC_HTTP_CLIENT_RECEIVERS = new Set([
+  "axios",
+  "ky",
+  "got",
+  "wretch",
+  "ofetch",
+  "api",
+  "client",
+  "http",
+  "request",
+  "fetcher",
+]);
+
+export const EXTERNAL_SYNC_AMBIGUOUS_HTTP_METHOD_NAMES = new Set([
+  "get",
+  "head",
+  "options",
+  "delete",
+]);
+
+export const EXTERNAL_SYNC_DIRECT_CALLEE_NAMES = new Set([
+  "fetch",
+  "ky",
+  "got",
+  "wretch",
+  "ofetch",
+  "setInterval",
+  "setTimeout",
+  "requestAnimationFrame",
+  "requestIdleCallback",
+  "queueMicrotask",
+]);
+
+export const EXTERNAL_SYNC_OBSERVER_CONSTRUCTORS = new Set([
+  "IntersectionObserver",
+  "MutationObserver",
+  "ResizeObserver",
+  "PerformanceObserver",
+]);
+
 // Subscription-shaped method names recognized by `prefer-use-sync-external-store`.
 // Covers the canonical `store.subscribe`, the browser `addEventListener` /
 // `addListener`, the EventEmitter `on` / `watch` / `listen`, and shorter
