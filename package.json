@@ -22,7 +22,8 @@
     "check": "vp check",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm build && changeset publish",
+    "bench:scores": "bun scripts/benchmark-scores.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
