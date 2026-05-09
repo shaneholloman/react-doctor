@@ -211,15 +211,15 @@ Top React codebases scanned by React Doctor, ranked by score. Updated automatica
 | #  | Repo | Score |
 | -- | ---- | ----: |
 | 1  | [executor](https://github.com/RhysSullivan/executor) | 96 |
-| 2  | [nodejs.org](https://github.com/nodejs/nodejs.org) | 87 |
-| 3  | [tldraw](https://github.com/tldraw/tldraw) | 76 |
-| 4  | [t3code](https://github.com/pingdotgg/t3code) | 75 |
-| 5  | [mastra](https://github.com/mastra-ai/mastra) | 70 |
-| 6  | [excalidraw](https://github.com/excalidraw/excalidraw) | 69 |
-| 7  | [payload](https://github.com/payloadcms/payload) | 69 |
-| 8  | [better-auth](https://github.com/better-auth/better-auth) | 69 |
-| 9  | [rocket.chat](https://github.com/RocketChat/Rocket.Chat) | 67 |
-| 10 | [typebot](https://github.com/baptisteArno/typebot.io) | 66 |
+| 2  | [nodejs.org](https://github.com/nodejs/nodejs.org) | 86 |
+| 3  | [tldraw](https://github.com/tldraw/tldraw) | 70 |
+| 4  | [t3code](https://github.com/pingdotgg/t3code) | 68 |
+| 5  | [better-auth](https://github.com/better-auth/better-auth) | 64 |
+| 6  | [excalidraw](https://github.com/excalidraw/excalidraw) | 63 |
+| 7  | [mastra](https://github.com/mastra-ai/mastra) | 63 |
+| 8  | [payload](https://github.com/payloadcms/payload) | 60 |
+| 9  | [typebot](https://github.com/baptisteArno/typebot.io) | 57 |
+| 10 | [plane](https://github.com/makeplane/plane) | 56 |
 
 <!-- LEADERBOARD:END -->
 
