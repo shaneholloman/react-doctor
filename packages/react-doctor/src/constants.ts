@@ -97,28 +97,18 @@ export const SUPPRESSION_NEAR_MISS_MAX_LINES = 10;
 // that suggests it (`prefer-use-effect-event`) stays silent.
 export const USE_EFFECT_EVENT_MIN_MAJOR = 19;
 
-// Cap how many rule groups the non-verbose diagnostics list prints
-// before collapsing the remainder into a single summary line. Keeps
-// the default output scannable while pointing users at `--verbose`
-// for the full breakdown.
-export const MAX_RULE_GROUPS_SHOWN_NON_VERBOSE = 5;
+// In the default human output, show several category sections like an
+// audit report, but cap each section so one noisy category does not
+// bury the rest of the scan.
+export const MAX_CATEGORY_GROUPS_SHOWN_NON_VERBOSE = 5;
 
-// How many of the top rule groups get the full message+help+location
-// treatment in the default output. The rest collapse to a single
-// `<icon> <rule> <count> sites` line so the list stays scannable.
-
-// Bar width used by the per-category horizontal bar chart in the
-// summary block. Sized to fit comfortably in an 80-col terminal next
-// to the longest category label.
-export const CATEGORY_BAR_WIDTH_CHARS = 16;
-
-// Width of the category-name column in the breakdown so the bars line
-// up regardless of label length.
-export const CATEGORY_LABEL_COLUMN_WIDTH_CHARS = 18;
+export const MAX_RULE_GROUPS_PER_CATEGORY_NON_VERBOSE = 3;
 
 // Minimum width of the rule-name column in the diagnostics list. Pads
 // shorter rule names so the right-aligned `N sites` count stays in a
 // consistent column even when one rule has a much longer identifier.
 export const RULE_NAME_COLUMN_WIDTH_CHARS = 36;
 
-export const SPINNER_INDENT_CHARS = 2;
+export const OUTPUT_DETAIL_WRAP_WIDTH_CHARS = 88;
+
+export const SPINNER_INDENT_CHARS = 0;

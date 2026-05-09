@@ -836,6 +836,7 @@ const parseOxlintOutput = (stdout: string): Diagnostic[] => {
         severity: diagnostic.severity,
         message: cleaned.message,
         help: cleaned.help,
+        url: diagnostic.url,
         line: primaryLabel?.span.line ?? 0,
         column: primaryLabel?.span.column ?? 0,
         category: resolveDiagnosticCategory(plugin, rule),

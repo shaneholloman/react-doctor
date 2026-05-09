@@ -59,6 +59,7 @@ export interface Diagnostic {
   severity: "error" | "warning";
   message: string;
   help: string;
+  url?: string;
   line: number;
   column: number;
   category: string;

@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import {
-  CATEGORY_BAR_WIDTH_CHARS,
-  CATEGORY_LABEL_COLUMN_WIDTH_CHARS,
-  MAX_RULE_GROUPS_SHOWN_NON_VERBOSE,
+  MAX_CATEGORY_GROUPS_SHOWN_NON_VERBOSE,
+  MAX_RULE_GROUPS_PER_CATEGORY_NON_VERBOSE,
   MILLISECONDS_PER_SECOND,
   buildNoReactDependencyError,
   OFFLINE_MESSAGE,
   OXLINT_NODE_REQUIREMENT,
   OXLINT_RECOMMENDED_NODE_MAJOR,
+  OUTPUT_DETAIL_WRAP_WIDTH_CHARS,
   PERFECT_SCORE,
   RULE_NAME_COLUMN_WIDTH_CHARS,
   SCORE_BAR_WIDTH_CHARS,
@@ -27,10 +27,6 @@ import type {
   ScanResult,
   ScoreResult,
 } from "./types.js";
-import {
-  buildCategoryBreakdown,
-  type CategoryBreakdownEntry,
-} from "./utils/build-category-breakdown.js";
 import { buildHiddenDiagnosticsSummary } from "./utils/build-hidden-diagnostics-summary.js";
 import { calculateScore, calculateScoreLocally } from "./utils/calculate-score.js";
 import { colorizeByScore } from "./utils/colorize-by-score.js";
@@ -45,6 +41,7 @@ import { toRelativePath } from "./utils/to-relative-path.js";
 import { loadConfig } from "./utils/load-config.js";
 import { isLoggerSilent, logger, setLoggerSilent } from "./utils/logger.js";
 import { prompts } from "./utils/prompts.js";
+import { wrapIndentedText } from "./utils/wrap-indented-text.js";
 import {
   installNodeViaNvm,
   isNvmInstalled,
@@ -85,6 +82,12 @@ interface VerboseSiteEntry {
   suppressionHint?: string;
 }
 
+interface CategoryDiagnosticGroup {
+  category: string;
+  diagnostics: Diagnostic[];
+  ruleGroups: [string, Diagnostic[]][];
+}
+
 const buildVerboseSiteMap = (diagnostics: Diagnostic[]): Map<string, VerboseSiteEntry[]> => {
   const fileSites = new Map<string, VerboseSiteEntry[]>();
   for (const diagnostic of diagnostics) {
@@ -98,6 +101,17 @@ const buildVerboseSiteMap = (diagnostics: Diagnostic[]): Map<string, VerboseSite
 };
 
 const formatSiteCountBadge = (count: number): string => (count > 1 ? `×${count}` : "");
+
+const formatIssueCount = (count: number): string => `${count} ${count === 1 ? "issue" : "issues"}`;
+
+const toRuleTitle = (ruleName: string): string => {
+  const readableRuleName = ruleName
+    .replace(/^(no|prefer|require|use)-/, "")
+    .replace(/^(nextjs|tanstack-start)-/, "")
+    .replaceAll("-", " ");
+  const title = readableRuleName.charAt(0).toUpperCase() + readableRuleName.slice(1);
+  return title.replace(/\b(css|html|url|svg|jsx|api|ua)\b/gi, (match) => match.toUpperCase());
+};
 
 const computeRuleNameColumnWidth = (ruleKeys: string[]): number => {
   const longestRuleNameLength = ruleKeys.reduce(
@@ -114,6 +128,10 @@ const padRuleNameToColumn = (ruleName: string, columnWidth: number): string => {
 
 const grayLine = (text: string): void => {
   logger.log(highlighter.gray(text));
+};
+
+const grayWrappedLine = (text: string, linePrefix: string): void => {
+  grayLine(wrapIndentedText(text, linePrefix, OUTPUT_DETAIL_WRAP_WIDTH_CHARS));
 };
 
 const printCompactRuleGroupLine = (
@@ -136,22 +154,71 @@ const printCompactRuleGroupLine = (
   logger.log(`  ${icon} ${ruleNameRendering}${trailingBadge}`);
 };
 
-const printDetailedRuleGroup = (
+const getWorstSeverity = (diagnostics: Diagnostic[]): Diagnostic["severity"] =>
+  diagnostics.some((diagnostic) => diagnostic.severity === "error") ? "error" : "warning";
+
+const buildCategoryDiagnosticGroups = (diagnostics: Diagnostic[]): CategoryDiagnosticGroup[] => {
+  const categoryGroups = groupBy(diagnostics, (diagnostic) => diagnostic.category);
+  return [...categoryGroups.entries()]
+    .map(([category, categoryDiagnostics]) => {
+      const ruleGroups = groupBy(
+        categoryDiagnostics,
+        (diagnostic) => `${diagnostic.plugin}/${diagnostic.rule}`,
+      );
+      return {
+        category,
+        diagnostics: categoryDiagnostics,
+        ruleGroups: sortByImportance([...ruleGroups.entries()]),
+      };
+    })
+    .toSorted((categoryGroupA, categoryGroupB) => {
+      const severityDelta =
+        SEVERITY_ORDER[getWorstSeverity(categoryGroupA.diagnostics)] -
+        SEVERITY_ORDER[getWorstSeverity(categoryGroupB.diagnostics)];
+      if (severityDelta !== 0) return severityDelta;
+      if (categoryGroupA.diagnostics.length !== categoryGroupB.diagnostics.length) {
+        return categoryGroupB.diagnostics.length - categoryGroupA.diagnostics.length;
+      }
+      return categoryGroupA.category.localeCompare(categoryGroupB.category);
+    });
+};
+
+const printDefaultRuleGroup = (
   ruleKey: string,
   ruleDiagnostics: Diagnostic[],
   rootDirectory: string,
-  ruleNameColumnWidth: number,
 ): void => {
-  printCompactRuleGroupLine(ruleKey, ruleDiagnostics, ruleNameColumnWidth);
   const firstDiagnostic = ruleDiagnostics[0];
-  grayLine(indentMultilineText(firstDiagnostic.message, "      "));
+  const ruleTitle = toRuleTitle(firstDiagnostic.rule);
+  const severitySymbol = firstDiagnostic.severity === "error" ? "✗" : "⚠";
+  const icon = colorizeBySeverity(severitySymbol, firstDiagnostic.severity);
+  const siteCountBadge = formatSiteCountBadge(ruleDiagnostics.length);
+  const trailingBadge = siteCountBadge.length > 0 ? ` ${highlighter.gray(siteCountBadge)}` : "";
+
+  logger.log(`  ${icon} ${ruleTitle}${trailingBadge}`);
+  grayWrappedLine(firstDiagnostic.message, "    ");
   if (firstDiagnostic.help) {
-    grayLine(indentMultilineText(`→ ${firstDiagnostic.help}`, "      "));
+    grayWrappedLine(firstDiagnostic.help, "    ");
+  }
+  if (firstDiagnostic.url) {
+    grayLine(`    ${firstDiagnostic.url}`);
   }
   const firstLocation = ruleDiagnostics.find((diagnostic) => diagnostic.line > 0);
   if (firstLocation) {
     const locationPath = toRelativePath(firstLocation.filePath, rootDirectory);
-    grayLine(`      ${locationPath}:${firstLocation.line}`);
+    grayLine(`    ${locationPath}:${firstLocation.line}`);
+  }
+};
+
+const printDefaultCategoryGroup = (
+  categoryGroup: CategoryDiagnosticGroup,
+  visibleRuleGroups: [string, Diagnostic[]][],
+  rootDirectory: string,
+): void => {
+  const issueCount = formatIssueCount(categoryGroup.diagnostics.length);
+  logger.log(`${highlighter.bold(categoryGroup.category)} ${highlighter.dim(issueCount)}`);
+  for (const [ruleKey, ruleDiagnostics] of visibleRuleGroups) {
+    printDefaultRuleGroup(ruleKey, ruleDiagnostics, rootDirectory);
   }
   logger.break();
 };
@@ -183,46 +250,64 @@ const printVerboseRuleGroup = (
   logger.break();
 };
 
-const printDiagnostics = (
-  diagnostics: Diagnostic[],
-  isVerbose: boolean,
-  rootDirectory: string,
-): void => {
-  const ruleGroups = groupBy(
-    diagnostics,
-    (diagnostic) => `${diagnostic.plugin}/${diagnostic.rule}`,
+const printDefaultDiagnostics = (diagnostics: Diagnostic[], rootDirectory: string): void => {
+  const categoryGroups = buildCategoryDiagnosticGroups(diagnostics);
+  const hiddenRuleGroups: [string, Diagnostic[]][] = [];
+  const visibleCategoryGroups = categoryGroups.slice(0, MAX_CATEGORY_GROUPS_SHOWN_NON_VERBOSE);
+  const hiddenCategoryGroups = categoryGroups.slice(MAX_CATEGORY_GROUPS_SHOWN_NON_VERBOSE);
+
+  for (const categoryGroup of visibleCategoryGroups) {
+    const visibleRuleGroups = categoryGroup.ruleGroups.slice(
+      0,
+      MAX_RULE_GROUPS_PER_CATEGORY_NON_VERBOSE,
+    );
+    const remainingRuleGroups = categoryGroup.ruleGroups.slice(
+      MAX_RULE_GROUPS_PER_CATEGORY_NON_VERBOSE,
+    );
+    printDefaultCategoryGroup(categoryGroup, visibleRuleGroups, rootDirectory);
+    hiddenRuleGroups.push(...remainingRuleGroups);
+  }
+  hiddenRuleGroups.push(
+    ...hiddenCategoryGroups.flatMap((categoryGroup) => categoryGroup.ruleGroups),
   );
-
-  const sortedRuleGroups = sortByImportance([...ruleGroups.entries()]);
-  const visibleRuleGroups = isVerbose
-    ? sortedRuleGroups
-    : sortedRuleGroups.slice(0, MAX_RULE_GROUPS_SHOWN_NON_VERBOSE);
-  const hiddenRuleGroups = isVerbose
-    ? []
-    : sortedRuleGroups.slice(MAX_RULE_GROUPS_SHOWN_NON_VERBOSE);
-
-  const ruleNameColumnWidth = computeRuleNameColumnWidth(
-    visibleRuleGroups.map(([ruleKey]) => ruleKey),
-  );
-
-  visibleRuleGroups.forEach(([ruleKey, ruleDiagnostics]) => {
-    if (isVerbose) {
-      printVerboseRuleGroup(ruleKey, ruleDiagnostics, ruleNameColumnWidth);
-      return;
-    }
-    printDetailedRuleGroup(ruleKey, ruleDiagnostics, rootDirectory, ruleNameColumnWidth);
-  });
 
   if (hiddenRuleGroups.length > 0) {
     printHiddenDiagnosticsSummary(hiddenRuleGroups);
   }
 };
 
+const printDiagnostics = (
+  diagnostics: Diagnostic[],
+  isVerbose: boolean,
+  rootDirectory: string,
+): void => {
+  if (!isVerbose) {
+    printDefaultDiagnostics(diagnostics, rootDirectory);
+    return;
+  }
+
+  const ruleGroups = groupBy(
+    diagnostics,
+    (diagnostic) => `${diagnostic.plugin}/${diagnostic.rule}`,
+  );
+  const sortedRuleGroups = sortByImportance([...ruleGroups.entries()]);
+  const visibleRuleGroups = sortedRuleGroups;
+
+  const ruleNameColumnWidth = computeRuleNameColumnWidth(
+    visibleRuleGroups.map(([ruleKey]) => ruleKey),
+  );
+
+  visibleRuleGroups.forEach(([ruleKey, ruleDiagnostics]) => {
+    printVerboseRuleGroup(ruleKey, ruleDiagnostics, ruleNameColumnWidth);
+  });
+};
+
 const printHiddenDiagnosticsSummary = (hiddenRuleGroups: [string, Diagnostic[]][]): void => {
   const hiddenDiagnostics = hiddenRuleGroups.flatMap(([, ruleDiagnostics]) => ruleDiagnostics);
-  const renderedParts = buildHiddenDiagnosticsSummary(hiddenDiagnostics).map((part) =>
-    colorizeBySeverity(part.text, part.severity),
-  );
+  const renderedParts = buildHiddenDiagnosticsSummary(hiddenDiagnostics).map((part) => {
+    const [icon, ...labelParts] = part.text.split(" ");
+    return `${colorizeBySeverity(icon, part.severity)} ${highlighter.dim(labelParts.join(" "))}`;
+  });
 
   logger.log(`  ${renderedParts.join("  ")}`);
   grayLine("    Run `npx react-doctor@latest . --verbose` to get all details");
@@ -250,6 +335,9 @@ const formatRuleSummary = (ruleKey: string, ruleDiagnostics: Diagnostic[]): stri
 
   if (firstDiagnostic.help) {
     sections.push("", `Suggestion: ${firstDiagnostic.help}`);
+  }
+  if (firstDiagnostic.url) {
+    sections.push("", `Docs: ${firstDiagnostic.url}`);
   }
 
   sections.push("", "Files:");
@@ -349,38 +437,6 @@ const printNoScoreHeader = (noScoreMessage: string): void => {
   logger.break();
 };
 
-const buildCategoryBar = (count: number, maximumCount: number, useErrorColor: boolean): string => {
-  if (maximumCount === 0) return highlighter.dim("░".repeat(CATEGORY_BAR_WIDTH_CHARS));
-  const filledCount = Math.max(1, Math.round((count / maximumCount) * CATEGORY_BAR_WIDTH_CHARS));
-  const cappedFilledCount = Math.min(filledCount, CATEGORY_BAR_WIDTH_CHARS);
-  const emptyCount = CATEGORY_BAR_WIDTH_CHARS - cappedFilledCount;
-  const filledSegment = "█".repeat(cappedFilledCount);
-  const emptySegment = "░".repeat(emptyCount);
-  const colorizedFilled = useErrorColor
-    ? highlighter.error(filledSegment)
-    : highlighter.warn(filledSegment);
-  return `${colorizedFilled}${highlighter.dim(emptySegment)}`;
-};
-
-const padCategoryLabel = (categoryLabel: string): string => {
-  if (categoryLabel.length >= CATEGORY_LABEL_COLUMN_WIDTH_CHARS) return categoryLabel;
-  return categoryLabel + " ".repeat(CATEGORY_LABEL_COLUMN_WIDTH_CHARS - categoryLabel.length);
-};
-
-const printCategoryBreakdown = (entries: CategoryBreakdownEntry[]): void => {
-  if (entries.length === 0) return;
-  const maximumCount = Math.max(...entries.map((entry) => entry.totalCount));
-  logger.dim("  By category");
-  for (const entry of entries) {
-    const paddedLabel = padCategoryLabel(entry.category);
-    const categoryBar = buildCategoryBar(entry.totalCount, maximumCount, entry.errorCount > 0);
-    const totalCountDisplay = String(entry.totalCount);
-    const errorBadge = entry.errorCount > 0 ? ` ${highlighter.error(`${entry.errorCount}×`)}` : "";
-    logger.log(`    ${paddedLabel}${categoryBar} ${totalCountDisplay}${errorBadge}`);
-  }
-  logger.break();
-};
-
 const buildShareUrl = (
   diagnostics: Diagnostic[],
   scoreResult: ScoreResult | null,
@@ -434,8 +490,6 @@ const printSummary = (
   noScoreMessage: string,
   isOffline: boolean,
 ): void => {
-  printCategoryBreakdown(buildCategoryBreakdown(diagnostics));
-
   if (scoreResult) {
     printScoreHeader(scoreResult);
   } else {
