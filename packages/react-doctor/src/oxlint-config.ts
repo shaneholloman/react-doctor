@@ -73,6 +73,15 @@ export const TANSTACK_START_RULES: Record<string, RuleSeverity> = {
   "react-doctor/tanstack-start-loader-parallel-fetch": "warn",
 };
 
+// HACK: every diagnostic from `eslint-plugin-react-hooks` (the React
+// Compiler frontend, oxlint-namespaced as `react-hooks-js`) ships at
+// `"error"` severity. Each one represents a code shape the compiler
+// cannot optimize — leaving the surrounding component un-memoized at
+// runtime — so we want the GitHub Action's default `--fail-on error`
+// to trip on these. PR #140 silently downgraded the whole map to
+// `"warn"` as part of a broader refactor, which made "React Compiler
+// can't optimize this code" diagnostics stop counting toward
+// `errorCount` and stop failing CI; restored here.
 const REACT_COMPILER_RULES: Record<string, RuleSeverity> = {
   "react-hooks-js/set-state-in-render": "error",
   "react-hooks-js/immutability": "error",
