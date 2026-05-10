@@ -518,39 +518,80 @@ const hasReactDependency = (packageJson: PackageJson): boolean => {
   );
 };
 
-export const discoverReactSubprojects = (rootDirectory: string): WorkspacePackage[] => {
-  if (!fs.existsSync(rootDirectory) || !fs.statSync(rootDirectory).isDirectory()) return [];
-
+const toReactWorkspacePackages = (directories: string[]): WorkspacePackage[] => {
   const packages: WorkspacePackage[] = [];
 
-  const rootPackageJsonPath = path.join(rootDirectory, "package.json");
-  if (isFile(rootPackageJsonPath)) {
-    const rootPackageJson = readPackageJson(rootPackageJsonPath);
-    if (hasReactDependency(rootPackageJson)) {
-      const name = rootPackageJson.name ?? path.basename(rootDirectory);
-      packages.push({ name, directory: rootDirectory });
-    }
-  }
-
-  const entries = fs.readdirSync(rootDirectory, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules") {
-      continue;
-    }
-
-    const subdirectory = path.join(rootDirectory, entry.name);
-    const packageJsonPath = path.join(subdirectory, "package.json");
+  for (const directory of directories) {
+    const packageJsonPath = path.join(directory, "package.json");
     if (!isFile(packageJsonPath)) continue;
 
     const packageJson = readPackageJson(packageJsonPath);
     if (!hasReactDependency(packageJson)) continue;
 
-    const name = packageJson.name ?? entry.name;
-    packages.push({ name, directory: subdirectory });
+    const name = packageJson.name ?? path.basename(directory);
+    packages.push({ name, directory });
   }
 
   return packages;
+};
+
+const listManifestWorkspacePackages = (rootDirectory: string): WorkspacePackage[] => {
+  const packageJsonPath = path.join(rootDirectory, "package.json");
+  if (isFile(packageJsonPath)) return listWorkspacePackages(rootDirectory);
+
+  const patterns = parsePnpmWorkspacePatterns(rootDirectory);
+  const nxPatterns = patterns.length > 0 ? [] : getNxWorkspaceDirectories(rootDirectory);
+  const directories = (patterns.length > 0 ? patterns : nxPatterns).flatMap((pattern) =>
+    resolveWorkspaceDirectories(rootDirectory, pattern),
+  );
+
+  return toReactWorkspacePackages(directories);
+};
+
+const discoverReactSubprojectsByFilesystem = (rootDirectory: string): WorkspacePackage[] => {
+  const packages: WorkspacePackage[] = [];
+  const pendingDirectories = [rootDirectory];
+
+  while (pendingDirectories.length > 0) {
+    const currentDirectory = pendingDirectories.shift();
+    if (!currentDirectory) continue;
+
+    const packageJsonPath = path.join(currentDirectory, "package.json");
+    if (isFile(packageJsonPath)) {
+      const packageJson = readPackageJson(packageJsonPath);
+      if (hasReactDependency(packageJson)) {
+        const name = packageJson.name ?? path.basename(currentDirectory);
+        packages.push({ name, directory: currentDirectory });
+      }
+    }
+
+    const entries = fs
+      .readdirSync(currentDirectory, { withFileTypes: true })
+      .toSorted((firstEntry, secondEntry) => firstEntry.name.localeCompare(secondEntry.name));
+
+    for (const entry of entries) {
+      if (
+        !entry.isDirectory() ||
+        entry.name.startsWith(".") ||
+        IGNORED_DIRECTORIES.has(entry.name)
+      ) {
+        continue;
+      }
+
+      pendingDirectories.push(path.join(currentDirectory, entry.name));
+    }
+  }
+
+  return packages;
+};
+
+export const discoverReactSubprojects = (rootDirectory: string): WorkspacePackage[] => {
+  if (!fs.existsSync(rootDirectory) || !fs.statSync(rootDirectory).isDirectory()) return [];
+
+  const manifestPackages = listManifestWorkspacePackages(rootDirectory);
+  if (manifestPackages.length > 0) return manifestPackages;
+
+  return discoverReactSubprojectsByFilesystem(rootDirectory);
 };
 
 export const listWorkspacePackages = (rootDirectory: string): WorkspacePackage[] => {

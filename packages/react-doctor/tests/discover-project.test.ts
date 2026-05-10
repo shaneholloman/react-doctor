@@ -274,6 +274,52 @@ describe("discoverReactSubprojects", () => {
     expect(packages[1]).toEqual({ name: "my-extension", directory: subdirectory });
   });
 
+  it("includes deeply nested React packages", () => {
+    const rootDirectory = path.join(tempDirectory, "deep-react-package");
+    const subdirectory = path.join(rootDirectory, "apps", "web");
+    fs.mkdirSync(subdirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(subdirectory, "package.json"),
+      JSON.stringify({ name: "web", dependencies: { react: "^19.0.0" } }),
+    );
+
+    const packages = discoverReactSubprojects(rootDirectory);
+    expect(packages).toContainEqual({ name: "web", directory: subdirectory });
+  });
+
+  it("prefers pnpm workspace packages over filesystem recursion", () => {
+    const rootDirectory = path.join(tempDirectory, "pnpm-workspace-preferred");
+    const workspaceDirectory = path.join(rootDirectory, "apps", "web");
+    const unlistedDirectory = path.join(rootDirectory, "examples", "preview");
+    fs.mkdirSync(workspaceDirectory, { recursive: true });
+    fs.mkdirSync(unlistedDirectory, { recursive: true });
+    fs.writeFileSync(path.join(rootDirectory, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+    fs.writeFileSync(
+      path.join(workspaceDirectory, "package.json"),
+      JSON.stringify({ name: "web", dependencies: { react: "^19.0.0" } }),
+    );
+    fs.writeFileSync(
+      path.join(unlistedDirectory, "package.json"),
+      JSON.stringify({ name: "preview", dependencies: { react: "^19.0.0" } }),
+    );
+
+    const packages = discoverReactSubprojects(rootDirectory);
+    expect(packages).toEqual([{ name: "web", directory: workspaceDirectory }]);
+  });
+
+  it("skips ignored generated directories during filesystem recursion", () => {
+    const rootDirectory = path.join(tempDirectory, "ignored-generated-directories");
+    const ignoredDirectory = path.join(rootDirectory, "node_modules", "preview");
+    fs.mkdirSync(ignoredDirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(ignoredDirectory, "package.json"),
+      JSON.stringify({ name: "preview", dependencies: { react: "^19.0.0" } }),
+    );
+
+    const packages = discoverReactSubprojects(rootDirectory);
+    expect(packages).toHaveLength(0);
+  });
+
   it("does not match packages with only @types/react", () => {
     const rootDirectory = path.join(tempDirectory, "types-only");
     fs.mkdirSync(rootDirectory, { recursive: true });
