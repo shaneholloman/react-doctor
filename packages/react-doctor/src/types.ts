@@ -15,15 +15,7 @@ export interface ProjectInfo {
   rootDirectory: string;
   projectName: string;
   reactVersion: string | null;
-  /**
-   * Raw `tailwindcss` dependency spec from the project (and its
-   * monorepo root / pnpm catalog / Bun catalog). `null` when the
-   * project doesn't depend on Tailwind, or when only a tag /
-   * workspace protocol could be resolved. Tailwind-version-gated
-   * rules (e.g. `design-no-redundant-size-axes` requires v3.4+ for
-   * the `size-N` shorthand) parse this through
-   * `parseTailwindMajorMinor` to decide whether to fire.
-   */
+  reactMajorVersion: number | null;
   tailwindVersion: string | null;
   framework: Framework;
   hasTypeScript: boolean;
@@ -210,6 +202,7 @@ interface ReactDoctorIgnoreConfig {
   rules?: string[];
   files?: string[];
   overrides?: ReactDoctorIgnoreOverride[];
+  tags?: string[];
 }
 
 export interface ReactDoctorConfig {
@@ -221,6 +214,7 @@ export interface ReactDoctorConfig {
   failOn?: FailOnLevel;
   customRulesOnly?: boolean;
   share?: boolean;
+  offline?: boolean;
   /**
    * Redirect react-doctor at a different project directory than the one
    * it was invoked against. Resolved relative to the location of the
@@ -297,6 +291,7 @@ export interface ReactDoctorConfig {
    * Set to `false` to scan only react-doctor's curated rule set.
    */
   adoptExistingLintConfig?: boolean;
+  entryFiles?: string[];
 }
 
 export type JsonReportMode = "full" | "diff" | "staged";

@@ -1,12 +1,5 @@
 import { createRequire } from "node:module";
-import {
-  REACT_19_DEPRECATION_MIN_MAJOR,
-  REACT_DOM_LEGACY_API_MIN_MAJOR,
-  TAILWIND_SIZE_SHORTHAND_MIN_MAJOR,
-  TAILWIND_SIZE_SHORTHAND_MIN_MINOR,
-  USE_EFFECT_EVENT_MIN_MAJOR,
-} from "./constants.js";
-import type { Framework } from "./types.js";
+import type { ProjectInfo } from "./types.js";
 import { isTailwindAtLeast, parseTailwindMajorMinor } from "./utils/parse-tailwind-major-minor.js";
 
 const esmRequire = createRequire(import.meta.url);
@@ -124,34 +117,10 @@ const REACT_COMPILER_RULES: Record<string, RuleSeverity> = {
 
 interface OxlintConfigOptions {
   pluginPath: string;
-  framework: Framework;
-  hasReactCompiler: boolean;
-  hasTanStackQuery: boolean;
+  project: ProjectInfo;
   customRulesOnly?: boolean;
-  /**
-   * Major version of React detected for the project (e.g. 17, 18, 19).
-   * `null` means the version couldn't be parsed (workspace tags, missing
-   * dep, exotic spec) — treat as "unknown, leave React-19-deprecation
-   * rules enabled" to err on the side of surfacing the migration nudge.
-   */
-  reactMajorVersion?: number | null;
-  /**
-   * Raw `tailwindcss` dependency spec from the project's package.json
-   * (or the resolved monorepo / catalog version). Forwarded to the
-   * Tailwind-version-gated rule filter, which suppresses rules that
-   * suggest utilities not yet shipped in the detected Tailwind line
-   * (e.g. `size-N` requires v3.4+). `null` / unparseable specs are
-   * treated as "unknown — assume latest", matching the React-major
-   * fallback.
-   */
-  tailwindVersion?: string | null;
-  /**
-   * Absolute paths to extra configs that should be merged into the
-   * generated oxlint config via the `extends` field. Used to fold the
-   * user's existing `.oxlintrc.json` / `.eslintrc.json` rules into the
-   * same scan so those diagnostics factor into the react-doctor score.
-   */
   extendsPaths?: string[];
+  ignoredTags?: ReadonlySet<string>;
 }
 
 interface JsPluginEntry {
@@ -428,7 +397,6 @@ export const GLOBAL_REACT_DOCTOR_RULES: Record<string, RuleSeverity> = {
   "react-doctor/design-no-redundant-padding-axes": "warn",
   "react-doctor/design-no-redundant-size-axes": "warn",
   "react-doctor/design-no-space-on-flex-children": "warn",
-  "react-doctor/design-no-em-dash-in-jsx-text": "warn",
   "react-doctor/design-no-three-period-ellipsis": "warn",
   "react-doctor/design-no-default-tailwind-palette": "warn",
   "react-doctor/design-no-vague-button-label": "warn",
@@ -449,123 +417,239 @@ export const ALL_REACT_DOCTOR_RULE_KEYS: ReadonlySet<string> = new Set([
   ...Object.keys(TANSTACK_QUERY_RULES),
 ]);
 
-// HACK: single source of truth for which rules are gated behind the
-// project's detected React major. Adding a new version-gated rule means
-// touching just this map.
-//
-// `mode` controls how the gate interacts with the detected React major:
-//   - "prefer-newer-api": the rule recommends an API that ONLY exists at
-//     or above `minMajor` (e.g. `useEffectEvent`). Skipped when the
-//     project is on a known version below `minMajor` (recommending an
-//     API that demonstrably doesn't exist there is noise).
-//   - "deprecation-warning": the rule flags patterns that are removed
-//     at or above `minMajor` (e.g. `defaultProps` in React 19). The
-//     audience that benefits most is the version that still allows the
-//     pattern — fires on every detected major.
-//
-// When version detection FAILS (`reactMajorVersion === null`) we
-// optimistically assume the user is on the latest React major and
-// apply EVERY rule, including `prefer-newer-api` ones. Detection
-// failure is rare (custom resolvers, monorepo overrides, mid-clone
-// state); silently dropping rules in that path turned a missing
-// `react` entry into a quietly degraded scan. Better to recommend a
-// modern API and let the user reject it than to hide the suggestion.
-type VersionGateMode = "prefer-newer-api" | "deprecation-warning";
-interface VersionGate {
-  minMajor: number;
-  mode: VersionGateMode;
-}
-const VERSION_GATED_RULE_IDS: ReadonlyMap<string, VersionGate> = new Map([
-  [
-    "react-doctor/no-react19-deprecated-apis",
-    { minMajor: REACT_19_DEPRECATION_MIN_MAJOR, mode: "deprecation-warning" },
-  ],
-  [
-    "react-doctor/no-default-props",
-    { minMajor: REACT_19_DEPRECATION_MIN_MAJOR, mode: "deprecation-warning" },
-  ],
-  [
-    "react-doctor/no-react-dom-deprecated-apis",
-    { minMajor: REACT_DOM_LEGACY_API_MIN_MAJOR, mode: "deprecation-warning" },
-  ],
-  [
-    "react-doctor/prefer-use-effect-event",
-    { minMajor: USE_EFFECT_EVENT_MIN_MAJOR, mode: "prefer-newer-api" },
-  ],
+export const FRAMEWORK_SPECIFIC_RULE_KEYS: ReadonlySet<string> = new Set([
+  ...Object.keys(NEXTJS_RULES),
+  ...Object.keys(REACT_NATIVE_RULES),
+  ...Object.keys(TANSTACK_START_RULES),
+  ...Object.keys(TANSTACK_QUERY_RULES),
 ]);
 
-const filterRulesByReactMajor = (
-  rules: Record<string, RuleSeverity>,
-  reactMajorVersion: number | null,
-): Record<string, RuleSeverity> => {
-  return Object.fromEntries(
-    Object.entries(rules).filter(([ruleKey]) => {
-      const gate = VERSION_GATED_RULE_IDS.get(ruleKey);
-      if (gate === undefined) return true;
-      if (gate.mode === "deprecation-warning") return true;
-      if (reactMajorVersion === null) return true;
-      return reactMajorVersion >= gate.minMajor;
-    }),
-  );
-};
-
-// HACK: parallel registry to VERSION_GATED_RULE_IDS for Tailwind-gated
-// rules. We only model `prefer-newer-api` here today: every rule below
-// suggests a Tailwind utility that landed in a specific minor and
-// would emit nonsense diagnostics on older codebases. If we ever ship
-// a Tailwind-deprecation rule (e.g. flagging `decoration-clone` →
-// `box-decoration-clone` for v4), revisit and add a `mode` field
-// matching the React side.
-interface TailwindVersionGate {
-  minMajor: number;
-  minMinor: number;
+export interface RuleMetadataEntry {
+  requires?: ReadonlyArray<string>;
+  tags: ReadonlySet<string>;
 }
-const TAILWIND_VERSION_GATED_RULE_IDS: ReadonlyMap<string, TailwindVersionGate> = new Map([
+
+const EMPTY_TAGS: ReadonlySet<string> = new Set();
+const TEST_NOISE_TAGS: ReadonlySet<string> = new Set(["test-noise"]);
+const DESIGN_AND_TEST_NOISE_TAGS: ReadonlySet<string> = new Set(["design", "test-noise"]);
+
+export const RULE_METADATA: ReadonlyMap<string, RuleMetadataEntry> = new Map([
+  ["react-doctor/no-react19-deprecated-apis", { requires: ["react:19"], tags: TEST_NOISE_TAGS }],
+  ["react-doctor/no-default-props", { requires: ["react:19"], tags: TEST_NOISE_TAGS }],
+  ["react-doctor/no-react-dom-deprecated-apis", { requires: ["react:18"], tags: TEST_NOISE_TAGS }],
+  ["react-doctor/prefer-use-effect-event", { requires: ["react:19"], tags: TEST_NOISE_TAGS }],
+
+  ["react-doctor/nextjs-no-img-element", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-async-client-component", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-a-element", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/nextjs-no-use-search-params-without-suspense",
+    { requires: ["nextjs"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/nextjs-no-client-fetch-for-server-data",
+    { requires: ["nextjs"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/nextjs-missing-metadata", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-client-side-redirect", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-redirect-in-try-catch", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-image-missing-sizes", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-native-script", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-inline-script-missing-id", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-font-link", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-css-link", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-polyfill-script", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-head-import", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+  ["react-doctor/nextjs-no-side-effect-in-get-handler", { requires: ["nextjs"], tags: EMPTY_TAGS }],
+
+  ["react-doctor/rn-no-raw-text", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-deprecated-modules", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-legacy-expo-packages", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-dimensions-get", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/rn-no-inline-flatlist-renderitem",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/rn-no-legacy-shadow-styles", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-prefer-reanimated", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/rn-no-single-element-style-array",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/rn-prefer-pressable", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-prefer-expo-image", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-non-native-navigator", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-scroll-state", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-no-scrollview-mapped-list", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/rn-no-inline-object-in-list-item",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/rn-animate-layout-property", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/rn-prefer-content-inset-adjustment",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/rn-pressable-shared-value-mutation",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/rn-list-data-mapped", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-list-callback-per-row", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/rn-list-recyclable-without-types",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/rn-animation-reaction-as-derived",
+    { requires: ["react-native"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/rn-bottom-sheet-prefer-native", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-scrollview-dynamic-padding", { requires: ["react-native"], tags: EMPTY_TAGS }],
+  ["react-doctor/rn-style-prefer-boxshadow", { requires: ["react-native"], tags: EMPTY_TAGS }],
+
+  [
+    "react-doctor/tanstack-start-route-property-order",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-direct-fetch-in-loader",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-server-fn-validate-input",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-useeffect-fetch",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-missing-head-content",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-anchor-element",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-server-fn-method-order",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-navigate-in-render",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-dynamic-server-fn-import",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-use-server-in-handler",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-no-secrets-in-loader",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  ["react-doctor/tanstack-start-get-mutation", { requires: ["tanstack-start"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/tanstack-start-redirect-in-try-catch",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/tanstack-start-loader-parallel-fetch",
+    { requires: ["tanstack-start"], tags: EMPTY_TAGS },
+  ],
+
+  ["react-doctor/query-stable-query-client", { requires: ["tanstack-query"], tags: EMPTY_TAGS }],
+  ["react-doctor/query-no-rest-destructuring", { requires: ["tanstack-query"], tags: EMPTY_TAGS }],
+  ["react-doctor/query-no-void-query-fn", { requires: ["tanstack-query"], tags: EMPTY_TAGS }],
+  ["react-doctor/query-no-query-in-effect", { requires: ["tanstack-query"], tags: EMPTY_TAGS }],
+  [
+    "react-doctor/query-mutation-missing-invalidation",
+    { requires: ["tanstack-query"], tags: EMPTY_TAGS },
+  ],
+  [
+    "react-doctor/query-no-usequery-for-mutation",
+    { requires: ["tanstack-query"], tags: EMPTY_TAGS },
+  ],
+
+  ["react-doctor/design-no-bold-heading", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/design-no-redundant-padding-axes", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
   [
     "react-doctor/design-no-redundant-size-axes",
-    {
-      minMajor: TAILWIND_SIZE_SHORTHAND_MIN_MAJOR,
-      minMinor: TAILWIND_SIZE_SHORTHAND_MIN_MINOR,
-    },
+    { requires: ["tailwind:3.4"], tags: DESIGN_AND_TEST_NOISE_TAGS },
   ],
+  ["react-doctor/design-no-space-on-flex-children", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/design-no-three-period-ellipsis", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/design-no-default-tailwind-palette", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/design-no-vague-button-label", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/no-side-tab-border", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/no-pure-black-background", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/no-gradient-text", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
+  ["react-doctor/no-dark-mode-glow", { tags: DESIGN_AND_TEST_NOISE_TAGS }],
 ]);
 
-const filterRulesByTailwindVersion = (
-  rules: Record<string, RuleSeverity>,
-  tailwindVersion: string | null,
-): Record<string, RuleSeverity> => {
-  const detected = parseTailwindMajorMinor(tailwindVersion);
-  return Object.fromEntries(
-    Object.entries(rules).filter(([ruleKey]) => {
-      const gate = TAILWIND_VERSION_GATED_RULE_IDS.get(ruleKey);
-      if (gate === undefined) return true;
-      return isTailwindAtLeast(detected, { major: gate.minMajor, minor: gate.minMinor });
-    }),
-  );
+export const buildCapabilities = (project: ProjectInfo): ReadonlySet<string> => {
+  const capabilities = new Set<string>();
+
+  capabilities.add(project.framework);
+  if (project.framework === "expo" || project.framework === "react-native") {
+    capabilities.add("react-native");
+  }
+
+  // HACK: when version detection fails (null), assume the latest React
+  // major so every version-gated rule fires. Silently dropping rules
+  // on detection failure was the worse outcome in practice.
+  const reactMajor = project.reactMajorVersion;
+  const effectiveReactMajor = reactMajor ?? 99;
+  for (let major = 17; major <= effectiveReactMajor; major++) {
+    capabilities.add(`react:${major}`);
+  }
+
+  if (project.tailwindVersion !== null) {
+    capabilities.add("tailwind");
+    const tailwind = parseTailwindMajorMinor(project.tailwindVersion);
+    // HACK: when version is unparseable (dist-tag, workspace protocol),
+    // assume latest so version-gated rules still fire.
+    if (isTailwindAtLeast(tailwind, { major: 3, minor: 4 })) {
+      capabilities.add("tailwind:3.4");
+    }
+  }
+
+  if (project.hasReactCompiler) capabilities.add("react-compiler");
+  if (project.hasTanStackQuery) capabilities.add("tanstack-query");
+  if (project.hasTypeScript) capabilities.add("typescript");
+
+  return capabilities;
+};
+
+export const shouldEnableRule = (
+  requires: ReadonlyArray<string> | undefined,
+  tags: ReadonlySet<string>,
+  capabilities: ReadonlySet<string>,
+  ignoredTags: ReadonlySet<string>,
+): boolean => {
+  if (requires) {
+    for (const capability of requires) {
+      if (!capabilities.has(capability)) return false;
+    }
+  }
+  for (const tag of tags) {
+    if (ignoredTags.has(tag)) return false;
+  }
+  return true;
 };
 
 export const createOxlintConfig = ({
   pluginPath,
-  framework,
-  hasReactCompiler,
-  hasTanStackQuery,
+  project,
   customRulesOnly = false,
-  reactMajorVersion = null,
-  tailwindVersion = null,
   extendsPaths = [],
+  ignoredTags = new Set<string>(),
 }: OxlintConfigOptions) => {
-  // HACK: REACT_COMPILER_RULES live under the `react-hooks-js` plugin
-  // namespace, provided by our bundled eslint-plugin-react-hooks package.
-  // That keeps projects that only install babel-plugin-react-compiler covered.
-  // Two failure modes oxlint won't tolerate:
-  //   1. plugin missing entirely → "Plugin 'react-hooks-js' not found" (#141)
-  //   2. plugin installed but at an older version that lacks one of our
-  //      configured rules → "Rule '<rule>' not found in plugin 'react-hooks-js'"
-  //      (e.g. v6 has no `void-use-memo`, peer range is `^6 || ^7`)
-  // Gate the rules on successful plugin resolution AND filter to the
-  // rule names the loaded plugin actually exports. Version drift then
-  // silently skips just the affected rules instead of crashing the whole scan.
-  const reactHooksJsPlugin = resolveReactHooksJsPlugin(hasReactCompiler, customRulesOnly);
+  const reactHooksJsPlugin = resolveReactHooksJsPlugin(project.hasReactCompiler, customRulesOnly);
   const reactCompilerRules = reactHooksJsPlugin
     ? filterRulesToAvailable(
         REACT_COMPILER_RULES,
@@ -586,15 +670,31 @@ export const createOxlintConfig = ({
   const jsPlugins: JsPluginEntry[] = [];
   if (reactHooksJsPlugin) jsPlugins.push(reactHooksJsPlugin.entry);
   if (youMightNotNeedEffectPlugin) jsPlugins.push(youMightNotNeedEffectPlugin.entry);
-  // HACK: oxlint merges configs from first to last, with later entries
-  // overriding earlier ones — and the local config always overrides
-  // every entry in `extends`. So adding the user's existing oxlintrc
-  // path to `extends` adds their `rules` to the union without letting
-  // their config silence anything react-doctor explicitly configures.
-  // Categories the user enables in their own config are blocked by our
-  // local `categories: { ... "off" }` block; that's intentional, since
-  // mass-enabling oxlint categories would balloon the rule set far
-  // beyond the curated react-doctor surface.
+
+  const capabilities = buildCapabilities(project);
+
+  const enabledReactDoctorRules: Record<string, RuleSeverity> = {};
+  const allRuleMaps = [
+    GLOBAL_REACT_DOCTOR_RULES,
+    NEXTJS_RULES,
+    REACT_NATIVE_RULES,
+    TANSTACK_START_RULES,
+    TANSTACK_QUERY_RULES,
+  ];
+  for (const ruleMap of allRuleMaps) {
+    for (const [ruleKey, severity] of Object.entries(ruleMap)) {
+      const metadata = RULE_METADATA.get(ruleKey);
+      if (!metadata) {
+        if (FRAMEWORK_SPECIFIC_RULE_KEYS.has(ruleKey)) continue;
+        enabledReactDoctorRules[ruleKey] = severity;
+        continue;
+      }
+      if (shouldEnableRule(metadata.requires, metadata.tags, capabilities, ignoredTags)) {
+        enabledReactDoctorRules[ruleKey] = severity;
+      }
+    }
+  }
+
   return {
     ...(extendsPaths.length > 0 ? { extends: extendsPaths } : {}),
     categories: {
@@ -613,14 +713,7 @@ export const createOxlintConfig = ({
       ...(customRulesOnly ? {} : BUILTIN_A11Y_RULES),
       ...reactCompilerRules,
       ...youMightNotNeedEffectRules,
-      ...filterRulesByTailwindVersion(
-        filterRulesByReactMajor(GLOBAL_REACT_DOCTOR_RULES, reactMajorVersion),
-        tailwindVersion,
-      ),
-      ...(framework === "nextjs" ? NEXTJS_RULES : {}),
-      ...(framework === "expo" || framework === "react-native" ? REACT_NATIVE_RULES : {}),
-      ...(framework === "tanstack-start" ? TANSTACK_START_RULES : {}),
-      ...(hasTanStackQuery ? TANSTACK_QUERY_RULES : {}),
+      ...enabledReactDoctorRules,
     },
   };
 };

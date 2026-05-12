@@ -20,11 +20,11 @@ import { buildJsonReportError } from "./utils/build-json-report-error.js";
 import { calculateScore } from "./utils/calculate-score.js";
 import { checkReducedMotion } from "./utils/check-reduced-motion.js";
 import { clearIgnorePatternsCache } from "./utils/collect-ignore-patterns.js";
+import { clearAutoSuppressionCaches } from "./utils/merge-and-filter-diagnostics.js";
 import { clearProjectCache, discoverProject } from "./utils/discover-project.js";
 import { computeJsxIncludePaths } from "./utils/jsx-include-paths.js";
 import { clearConfigCache, loadConfigWithSource } from "./utils/load-config.js";
 import { mergeAndFilterDiagnostics } from "./utils/merge-and-filter-diagnostics.js";
-import { parseReactMajor } from "./utils/parse-react-major.js";
 import { clearPackageJsonCache } from "./utils/read-package-json.js";
 import { createNodeReadFileLinesSync } from "./utils/read-file-lines-node.js";
 import { resolveConfigRootDir } from "./utils/resolve-config-root-dir.js";
@@ -70,6 +70,7 @@ export const clearCaches = (): void => {
   clearConfigCache();
   clearPackageJsonCache();
   clearIgnorePatternsCache();
+  clearAutoSuppressionCaches();
 };
 
 interface ToJsonReportOptions {
@@ -153,19 +154,17 @@ export const diagnose = async (
   const effectiveRespectInlineDisables =
     options.respectInlineDisables ?? userConfig?.respectInlineDisables ?? true;
 
+  const ignoredTags = new Set<string>(userConfig?.ignore?.tags ?? []);
+
   const lintPromise = effectiveLint
     ? runOxlint({
         rootDirectory: resolvedDirectory,
-        hasTypeScript: projectInfo.hasTypeScript,
-        framework: projectInfo.framework,
-        hasReactCompiler: projectInfo.hasReactCompiler,
-        hasTanStackQuery: projectInfo.hasTanStackQuery,
-        reactMajorVersion: parseReactMajor(projectInfo.reactVersion),
-        tailwindVersion: projectInfo.tailwindVersion,
+        project: projectInfo,
         includePaths: lintIncludePaths,
         customRulesOnly: userConfig?.customRulesOnly ?? false,
         respectInlineDisables: effectiveRespectInlineDisables,
         adoptExistingLintConfig: userConfig?.adoptExistingLintConfig ?? true,
+        ignoredTags,
       }).catch((error: unknown) => {
         console.error("Lint failed:", error);
         return EMPTY_DIAGNOSTICS;
@@ -174,7 +173,7 @@ export const diagnose = async (
 
   const deadCodePromise =
     effectiveDeadCode && !isDiffMode
-      ? runKnip(resolvedDirectory).catch((error: unknown) => {
+      ? runKnip(resolvedDirectory, userConfig?.entryFiles).catch((error: unknown) => {
           console.error("Dead code analysis failed:", error);
           return EMPTY_DIAGNOSTICS;
         })

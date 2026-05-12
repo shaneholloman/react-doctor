@@ -5,21 +5,6 @@
 // in addition to the major (e.g. the `size-N` shorthand only landed in
 // Tailwind v3.4 — gating purely on `major >= 3` would mis-fire on
 // v3.0 … v3.3 codebases).
-//
-// We grab the FIRST `<major>.<minor>` pair we can find. When only a
-// major is present (`"4"`, `"4.x"`, `"^4"`), we treat the minor as
-// `0`, which lines up with how npm `^4` semantically resolves to
-// `4.0.0` for matching purposes.
-//
-// Returning `null` for tags ("latest", "next"), workspace protocols,
-// and ranges that don't carry a concrete lower bound is intentional:
-// callers should treat `null` as "unknown — leave version-gated rules
-// enabled" so we never silently disable migration help for a project
-// we couldn't classify.
-//
-// Caveat — like `parseReactMajor`, we reject `0` majors so Tailwind
-// experimental builds (`0.0.0-insiders.<sha>`, exotic forks) don't
-// silently disable every Tailwind-gated rule.
 export interface TailwindMajorMinor {
   major: number;
   minor: number;

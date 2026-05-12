@@ -9,6 +9,7 @@ import {
   MILLISECONDS_PER_SECOND,
   OFFLINE_MESSAGE,
   OXLINT_NODE_REQUIREMENT,
+  ERROR_RULE_PENALTY,
   OXLINT_RECOMMENDED_NODE_MAJOR,
   OUTPUT_DETAIL_WRAP_WIDTH_CHARS,
   PERFECT_SCORE,
@@ -17,6 +18,7 @@ import {
   SCORE_GOOD_THRESHOLD,
   SCORE_OK_THRESHOLD,
   SHARE_BASE_URL,
+  WARNING_RULE_PENALTY,
 } from "./constants.js";
 import { NoReactDependencyError } from "./errors.js";
 import { resolveConfigRootDir } from "./utils/resolve-config-root-dir.js";
@@ -29,7 +31,11 @@ import type {
   ScoreResult,
 } from "./types.js";
 import { buildHiddenDiagnosticsSummary } from "./utils/build-hidden-diagnostics-summary.js";
-import { calculateScore, calculateScoreLocally } from "./utils/calculate-score.js";
+import {
+  calculateScore,
+  calculateScoreBreakdown,
+  calculateScoreLocally,
+} from "./utils/calculate-score.js";
 import { colorizeByScore } from "./utils/colorize-by-score.js";
 import { combineDiagnostics } from "./utils/combine-diagnostics.js";
 import { computeJsxIncludePaths } from "./utils/jsx-include-paths.js";
@@ -50,7 +56,6 @@ import {
 } from "./utils/resolve-compatible-node.js";
 import { resolveLintIncludePaths } from "./utils/resolve-lint-include-paths.js";
 import { runKnip } from "./utils/run-knip.js";
-import { parseReactMajor } from "./utils/parse-react-major.js";
 import { runOxlint } from "./utils/run-oxlint.js";
 import { isSpinnerSilent, setSpinnerSilent, spinner } from "./utils/spinner.js";
 
@@ -583,7 +588,16 @@ interface ResolvedScanOptions {
   share: boolean;
   respectInlineDisables: boolean;
   adoptExistingLintConfig: boolean;
+  ignoredTags: ReadonlySet<string>;
 }
+
+const buildIgnoredTags = (userConfig: ReactDoctorConfig | null): ReadonlySet<string> => {
+  const tags = new Set<string>();
+  if (userConfig?.ignore?.tags) {
+    for (const tag of userConfig.ignore.tags) tags.add(tag);
+  }
+  return tags;
+};
 
 const mergeScanOptions = (
   inputOptions: ScanOptions,
@@ -601,6 +615,7 @@ const mergeScanOptions = (
   respectInlineDisables:
     inputOptions.respectInlineDisables ?? userConfig?.respectInlineDisables ?? true,
   adoptExistingLintConfig: userConfig?.adoptExistingLintConfig ?? true,
+  ignoredTags: buildIgnoredTags(userConfig),
 });
 
 const printProjectDetection = (
@@ -728,17 +743,13 @@ const runScan = async (
         try {
           const lintDiagnostics = await runOxlint({
             rootDirectory: directory,
-            hasTypeScript: projectInfo.hasTypeScript,
-            framework: projectInfo.framework,
-            hasReactCompiler: projectInfo.hasReactCompiler,
-            hasTanStackQuery: projectInfo.hasTanStackQuery,
-            reactMajorVersion: parseReactMajor(projectInfo.reactVersion),
-            tailwindVersion: projectInfo.tailwindVersion,
+            project: projectInfo,
             includePaths: lintIncludePaths,
             nodeBinaryPath: resolvedNodeBinaryPath,
             customRulesOnly: options.customRulesOnly,
             respectInlineDisables: options.respectInlineDisables,
             adoptExistingLintConfig: options.adoptExistingLintConfig,
+            ignoredTags: options.ignoredTags,
           });
           lintSpinner?.succeed("Running lint checks.");
           return lintDiagnostics;
@@ -772,7 +783,7 @@ const runScan = async (
             ? null
             : spinner("Detecting dead code...").start();
           try {
-            const knipDiagnostics = await runKnip(directory);
+            const knipDiagnostics = await runKnip(directory, userConfig?.entryFiles);
             deadCodeSpinner?.succeed("Detecting dead code.");
             return knipDiagnostics;
           } catch (error) {
@@ -861,6 +872,22 @@ const runScan = async (
     noScoreMessage,
     !shouldShowShareLink,
   );
+
+  if (options.verbose && scoreResult && diagnostics.length > 0) {
+    const breakdown = calculateScoreBreakdown(diagnostics);
+    logger.break();
+    logger.dim(
+      `  Score formula: ${PERFECT_SCORE} - (${breakdown.errorRules.length} error rules × ${ERROR_RULE_PENALTY}) - (${breakdown.warningRules.length} warning rules × ${WARNING_RULE_PENALTY}) = ${breakdown.score}`,
+    );
+    if (breakdown.errorRules.length > 0) {
+      logger.dim(`  Error rules (−${breakdown.errorPenalty}): ${breakdown.errorRules.join(", ")}`);
+    }
+    if (breakdown.warningRules.length > 0) {
+      logger.dim(
+        `  Warning rules (−${breakdown.warningPenalty}): ${breakdown.warningRules.join(", ")}`,
+      );
+    }
+  }
 
   if (hasSkippedChecks) {
     const skippedLabel = skippedChecks.join(" and ");

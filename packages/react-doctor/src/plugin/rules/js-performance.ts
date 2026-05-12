@@ -110,6 +110,166 @@ export const jsMinMaxLoop: Rule = {
   }),
 };
 
+// HACK: methods that ALWAYS return a string when called on a string
+// receiver. Used to recognize `.toLowerCase().includes(x)` chains as
+// string-on-string lookups.
+const STRING_RETURNING_METHODS: ReadonlySet<string> = new Set([
+  "toString",
+  "toLocaleString",
+  "toLowerCase",
+  "toUpperCase",
+  "toLocaleLowerCase",
+  "toLocaleUpperCase",
+  "trim",
+  "trimStart",
+  "trimEnd",
+  "padStart",
+  "padEnd",
+  "normalize",
+  "repeat",
+  "replace",
+  "replaceAll",
+  "substring",
+  "substr",
+  "charAt",
+  "toFixed",
+  "toExponential",
+  "toPrecision",
+  "toJSON",
+]);
+
+// HACK: DOM/built-in properties whose value is statically `string`.
+const STRING_TYPED_PROPERTY_NAMES: ReadonlySet<string> = new Set([
+  "textContent",
+  "innerText",
+  "innerHTML",
+  "outerHTML",
+  "nodeValue",
+  "nodeName",
+  "localName",
+  "namespaceURI",
+  "baseURI",
+  "documentURI",
+  "tagName",
+  "className",
+  "id",
+  "lang",
+  "dir",
+  "title",
+  "alt",
+  "type",
+  "name",
+  "placeholder",
+  "href",
+  "src",
+  "value",
+  "accessKey",
+  "contentEditable",
+  "hash",
+  "host",
+  "hostname",
+  "pathname",
+  "port",
+  "protocol",
+  "search",
+  "origin",
+  "username",
+  "password",
+  "characterSet",
+  "contentType",
+  "charset",
+  "mimeType",
+  "mediaType",
+  "cssText",
+  "message",
+  "stack",
+  "fileName",
+  "code",
+  "label",
+  "slug",
+  "prefix",
+]);
+
+// HACK: identifier names that overwhelmingly bind to strings.
+const STRING_TYPED_IDENTIFIER_NAMES: ReadonlySet<string> = new Set([
+  "text",
+  "string",
+  "str",
+  "content",
+  "contents",
+  "html",
+  "xml",
+  "json",
+  "css",
+  "yaml",
+  "markdown",
+  "md",
+  "source",
+  "sourceCode",
+  "template",
+  "raw",
+  "comment",
+  "description",
+  "summary",
+  "snippet",
+  "url",
+  "uri",
+  "path",
+  "filename",
+  "filepath",
+  "fileName",
+  "filePath",
+  "line",
+  "char",
+  "character",
+  "letter",
+  "word",
+  "phrase",
+  "sentence",
+  "paragraph",
+  "query",
+  "search",
+  "haystack",
+  "needle",
+]);
+
+// HACK: returns true when the receiver of `.includes()` / `.indexOf()`
+// is obviously a string, so the Set rewrite suggestion doesn't apply.
+const isLikelyStringReceiver = (receiver: EsTreeNode | null | undefined): boolean => {
+  if (!receiver) return false;
+  if (receiver.type === "Literal" && typeof receiver.value === "string") return true;
+  if (receiver.type === "TemplateLiteral") return true;
+  if (
+    receiver.type === "CallExpression" &&
+    receiver.callee?.type === "Identifier" &&
+    receiver.callee.name === "String"
+  ) {
+    return true;
+  }
+  if (
+    receiver.type === "CallExpression" &&
+    receiver.callee?.type === "MemberExpression" &&
+    receiver.callee.property?.type === "Identifier" &&
+    STRING_RETURNING_METHODS.has(receiver.callee.property.name)
+  ) {
+    return true;
+  }
+  if (receiver.type === "MemberExpression" && receiver.property?.type === "Identifier") {
+    if (STRING_TYPED_PROPERTY_NAMES.has(receiver.property.name)) return true;
+  }
+  if (
+    receiver.type === "ChainExpression" &&
+    receiver.expression &&
+    isLikelyStringReceiver(receiver.expression)
+  ) {
+    return true;
+  }
+  if (receiver.type === "Identifier" && STRING_TYPED_IDENTIFIER_NAMES.has(receiver.name)) {
+    return true;
+  }
+  return false;
+};
+
 export const jsSetMapLookups: Rule = {
   create: (context: RuleContext) =>
     createLoopAwareVisitors({
@@ -117,12 +277,12 @@ export const jsSetMapLookups: Rule = {
         if (node.callee?.type !== "MemberExpression" || node.callee.property?.type !== "Identifier")
           return;
         const methodName = node.callee.property.name;
-        if (methodName === "includes" || methodName === "indexOf") {
-          context.report({
-            node,
-            message: `array.${methodName}() in a loop is O(n) per call — convert to a Set for O(1) lookups`,
-          });
-        }
+        if (methodName !== "includes" && methodName !== "indexOf") return;
+        if (isLikelyStringReceiver(node.callee.object)) return;
+        context.report({
+          node,
+          message: `array.${methodName}() in a loop is O(n) per call — convert to a Set for O(1) lookups`,
+        });
       },
     }),
 };
@@ -542,21 +702,117 @@ const findFirstAwaitOutsideNestedFunctions = (block: EsTreeNode): EsTreeNode | n
   return firstAwait;
 };
 
-// HACK: `for (const x of items) { await fetch(x); }` runs the fetches
-// sequentially — each one waits for the previous to finish before
-// starting. If the calls are independent (which they almost always are
-// in a list-iteration loop), the total latency is N × per-call latency
-// instead of just per-call. `await Promise.all(items.map(fetch))` runs
-// them all concurrently. We flag any `await` inside `for…of`,
-// `for…in`, classic `for`, `while`, or `.forEach`/`.map` callback
-// bodies where `await` appears at the top level of the loop body.
-//
-// Notable exceptions we INTENTIONALLY do not exempt:
-//  - `for await (const x of asyncIterable)` — that's a different
-//    AST node (ForOfStatement with `await: true`); we skip those.
-//  - Loops where the next iteration depends on the previous result
-//    (e.g. paginated fetch). The plugin can't tell — accept some
-//    false positives in exchange for catching the common waterfall.
+// HACK: heuristics to reduce false positives in the asyncAwaitInLoop
+// rule. Polling loops (`while (true) { await sleep(1000); ... }`) and
+// paginated fetches (`while (hasMore) { page = await fetch(cursor); cursor = page.next; }`)
+// are intentionally sequential and should not be flagged.
+
+const SLEEP_LIKE_FUNCTION_NAMES = new Set([
+  "sleep",
+  "delay",
+  "wait",
+  "setTimeout",
+  "pause",
+  "throttle",
+]);
+
+const isAwaitingSleepLikeCall = (awaitNode: EsTreeNode): boolean => {
+  const argument = awaitNode.argument;
+  if (!argument) return false;
+
+  if (argument.type === "CallExpression") {
+    if (
+      argument.callee?.type === "Identifier" &&
+      SLEEP_LIKE_FUNCTION_NAMES.has(argument.callee.name)
+    ) {
+      return true;
+    }
+    if (
+      argument.callee?.type === "MemberExpression" &&
+      argument.callee.property?.type === "Identifier" &&
+      SLEEP_LIKE_FUNCTION_NAMES.has(argument.callee.property.name)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const collectPatternIdentifiers = (pattern: EsTreeNode, target: Set<string>): void => {
+  if (pattern.type === "Identifier") {
+    target.add(pattern.name);
+  } else if (pattern.type === "ObjectPattern") {
+    for (const property of pattern.properties ?? []) {
+      if (property.type === "Property" && property.value) {
+        collectPatternIdentifiers(property.value, target);
+      } else if (property.type === "RestElement" && property.argument) {
+        collectPatternIdentifiers(property.argument, target);
+      }
+    }
+  } else if (pattern.type === "ArrayPattern") {
+    for (const element of pattern.elements ?? []) {
+      if (element) collectPatternIdentifiers(element, target);
+    }
+  } else if (pattern.type === "AssignmentPattern" && pattern.left) {
+    collectPatternIdentifiers(pattern.left, target);
+  }
+};
+
+const collectAssignedIdentifiers = (block: EsTreeNode): Set<string> => {
+  const assigned = new Set<string>();
+  walkAst(block, (child: EsTreeNode): boolean | void => {
+    if (isFunctionishExpression(child) || child.type === "FunctionDeclaration") return false;
+    if (child.type === "AssignmentExpression" && child.left) {
+      collectPatternIdentifiers(child.left, assigned);
+    }
+    if (child.type === "VariableDeclarator" && child.id && child.init?.type === "AwaitExpression") {
+      collectPatternIdentifiers(child.id, assigned);
+    }
+  });
+  return assigned;
+};
+
+const collectAwaitedArgIdentifiers = (block: EsTreeNode): Set<string> => {
+  const referenced = new Set<string>();
+  walkAst(block, (child: EsTreeNode): boolean | void => {
+    if (isFunctionishExpression(child) || child.type === "FunctionDeclaration") return false;
+    if (child.type !== "AwaitExpression" || !child.argument) return;
+    walkAst(child.argument, (innerChild: EsTreeNode) => {
+      if (innerChild.type === "Identifier") referenced.add(innerChild.name);
+      if (innerChild.type === "MemberExpression" && innerChild.object?.type === "Identifier") {
+        referenced.add(innerChild.object.name);
+      }
+    });
+  });
+  return referenced;
+};
+
+// HACK: detects patterns like `cursor = (await fetch(cursor)).next` where
+// the loop body assigns a variable that is then read by the next
+// iteration's await argument — paginated fetch, retry loops, etc.
+const hasLoopCarriedDependency = (block: EsTreeNode): boolean => {
+  const assigned = collectAssignedIdentifiers(block);
+  if (assigned.size === 0) return false;
+  const awaitedReferences = collectAwaitedArgIdentifiers(block);
+  for (const name of assigned) {
+    if (awaitedReferences.has(name)) return true;
+  }
+  return false;
+};
+
+const loopBodyHasOnlySleepLikeAwaits = (block: EsTreeNode): boolean => {
+  let allAreSleepLike = true;
+  let foundAny = false;
+  walkAst(block, (child: EsTreeNode): boolean | void => {
+    if (isFunctionishExpression(child) || child.type === "FunctionDeclaration") return false;
+    if (child.type === "AwaitExpression") {
+      foundAny = true;
+      if (!isAwaitingSleepLikeCall(child)) allAreSleepLike = false;
+    }
+  });
+  return foundAny && allAreSleepLike;
+};
 const isFunctionishExpression = (node: EsTreeNode): boolean =>
   node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression";
 
@@ -597,6 +853,8 @@ export const asyncAwaitInLoop: Rule = {
   create: (context: RuleContext) => {
     const inspectLoopBody = (loopBody: EsTreeNode | null | undefined, label: string): void => {
       if (!loopBody) return;
+      if (loopBodyHasOnlySleepLikeAwaits(loopBody)) return;
+      if (hasLoopCarriedDependency(loopBody)) return;
       const firstAwait = findFirstAwaitOutsideNestedFunctions(loopBody);
       if (firstAwait) {
         context.report({
@@ -646,9 +904,8 @@ export const asyncAwaitInLoop: Rule = {
         ) {
           return;
         }
-        // `body` is either a BlockStatement (block body) or any
-        // expression (concise body, e.g. `async x => fetch(x)`); walkAst
-        // handles both, so we just walk `body` directly.
+        if (loopBodyHasOnlySleepLikeAwaits(body)) return;
+        if (hasLoopCarriedDependency(body)) return;
         const firstAwait = findFirstAwaitOutsideNestedFunctions(body);
         if (firstAwait) {
           const message =

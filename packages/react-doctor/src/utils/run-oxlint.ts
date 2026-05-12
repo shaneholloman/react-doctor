@@ -13,8 +13,13 @@ import { batchIncludePaths } from "./batch-include-paths.js";
 import { canOxlintExtendConfig } from "./can-oxlint-extend-config.js";
 import { collectIgnorePatterns } from "./collect-ignore-patterns.js";
 import { detectUserLintConfigPaths } from "./detect-user-lint-config.js";
-import { ALL_REACT_DOCTOR_RULE_KEYS, createOxlintConfig } from "../oxlint-config.js";
-import type { CleanedDiagnostic, Diagnostic, Framework, OxlintOutput } from "../types.js";
+import {
+  ALL_REACT_DOCTOR_RULE_KEYS,
+  FRAMEWORK_SPECIFIC_RULE_KEYS,
+  RULE_METADATA,
+  createOxlintConfig,
+} from "../oxlint-config.js";
+import type { CleanedDiagnostic, Diagnostic, OxlintOutput, ProjectInfo } from "../types.js";
 import { neutralizeDisableDirectives } from "./neutralize-disable-directives.js";
 
 const esmRequire = createRequire(import.meta.url);
@@ -178,7 +183,6 @@ const RULE_CATEGORY_MAP: Record<string, string> = {
   "react-doctor/design-no-redundant-padding-axes": "Architecture",
   "react-doctor/design-no-redundant-size-axes": "Architecture",
   "react-doctor/design-no-space-on-flex-children": "Architecture",
-  "react-doctor/design-no-em-dash-in-jsx-text": "Architecture",
   "react-doctor/design-no-three-period-ellipsis": "Architecture",
   "react-doctor/design-no-default-tailwind-palette": "Architecture",
   "react-doctor/design-no-vague-button-label": "Accessibility",
@@ -434,8 +438,6 @@ const RULE_HELP_MAP: Record<string, string> = {
     "Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both axes match",
   "design-no-space-on-flex-children":
     "Use `gap-*` on the flex/grid parent. `space-x-*` / `space-y-*` produce phantom gaps when a sibling is conditionally rendered, lose vertical spacing on wrapped lines, and don't mirror in RTL",
-  "design-no-em-dash-in-jsx-text":
-    "Replace em dashes in JSX text with commas, colons, semicolons, periods, or parentheses — em dashes read as model-output filler",
   "design-no-three-period-ellipsis":
     'Use the typographic ellipsis "…" (or `&hellip;`) instead of three periods — pairs with action-with-followup labels ("Rename…", "Loading…")',
   "design-no-default-tailwind-palette":
@@ -858,52 +860,13 @@ const resolveTsConfigRelativePath = (rootDirectory: string): string | null => {
 
 interface RunOxlintOptions {
   rootDirectory: string;
-  hasTypeScript: boolean;
-  framework: Framework;
-  hasReactCompiler: boolean;
-  hasTanStackQuery: boolean;
-  /**
-   * Major version of React detected for the project. Forwarded to
-   * `createOxlintConfig`, which gates rules directionally:
-   *   - `"deprecation-warning"` rules (e.g. `no-default-props`) fire on
-   *     every detected major — the audience that still allows the
-   *     pattern is the one planning the upgrade.
-   *   - `"prefer-newer-api"` rules (e.g. `prefer-use-effect-event`) are
-   *     skipped when this is a known major below the rule's minimum.
-   * When this is `null` (version detection failed) we optimistically
-   * apply EVERY rule, treating the project as if it were on the latest
-   * React major.
-   */
-  reactMajorVersion?: number | null;
-  /**
-   * Raw `tailwindcss` dependency spec (already resolved across pnpm /
-   * Bun catalogs and monorepo roots). Forwarded to `createOxlintConfig`
-   * which suppresses rules that recommend utilities not yet shipped
-   * in the detected Tailwind line — e.g. `design-no-redundant-size-axes`
-   * suggests `size-N`, which only landed in Tailwind v3.4. `null`
-   * (no Tailwind dep, or only a tag/workspace spec) is treated
-   * optimistically: assume latest Tailwind, leave every gated rule on.
-   */
-  tailwindVersion?: string | null;
+  project: ProjectInfo;
   includePaths?: string[];
   nodeBinaryPath?: string;
   customRulesOnly?: boolean;
-  /**
-   * When `true` (default), pre-existing `// eslint-disable*` / `// oxlint-disable*`
-   * comments in source files are LEFT ALONE — oxlint will apply them
-   * normally, suppressing react-doctor diagnostics on those lines.
-   * When `false`, those comment markers are temporarily neutralized
-   * so react-doctor sees through every prior suppression (audit mode).
-   */
   respectInlineDisables?: boolean;
-  /**
-   * When `true` (default), detect the user's existing JSON oxlint /
-   * eslint config at `rootDirectory` and merge its rules into the
-   * generated scan config via oxlint's `extends` field. Diagnostics
-   * from those rules then count toward the react-doctor score.
-   * Set `false` to scan only react-doctor's curated rule set.
-   */
   adoptExistingLintConfig?: boolean;
+  ignoredTags?: ReadonlySet<string>;
 }
 
 let didValidateRuleRegistration = false;
@@ -913,6 +876,7 @@ const validateRuleRegistration = (): void => {
   didValidateRuleRegistration = true;
   const missingHelp: string[] = [];
   const missingCategory: string[] = [];
+  const missingMetadata: string[] = [];
   for (const fullKey of ALL_REACT_DOCTOR_RULE_KEYS) {
     const ruleName = fullKey.replace(/^react-doctor\//, "");
     if (!Object.hasOwn(RULE_CATEGORY_MAP, fullKey)) {
@@ -921,13 +885,19 @@ const validateRuleRegistration = (): void => {
     if (!Object.hasOwn(RULE_HELP_MAP, ruleName)) {
       missingHelp.push(fullKey);
     }
+    if (FRAMEWORK_SPECIFIC_RULE_KEYS.has(fullKey) && !RULE_METADATA.has(fullKey)) {
+      missingMetadata.push(fullKey);
+    }
   }
-  if (missingCategory.length > 0 || missingHelp.length > 0) {
+  if (missingCategory.length > 0 || missingHelp.length > 0 || missingMetadata.length > 0) {
     const detail = [
       missingCategory.length > 0
         ? `Missing RULE_CATEGORY_MAP entries: ${missingCategory.join(", ")}`
         : null,
       missingHelp.length > 0 ? `Missing RULE_HELP_MAP entries: ${missingHelp.join(", ")}` : null,
+      missingMetadata.length > 0
+        ? `Missing RULE_METADATA entries: ${missingMetadata.join(", ")}`
+        : null,
     ]
       .filter((entry): entry is string => entry !== null)
       .join("; ");
@@ -939,17 +909,13 @@ const validateRuleRegistration = (): void => {
 export const runOxlint = async (options: RunOxlintOptions): Promise<Diagnostic[]> => {
   const {
     rootDirectory,
-    hasTypeScript,
-    framework,
-    hasReactCompiler,
-    hasTanStackQuery,
-    reactMajorVersion = null,
-    tailwindVersion = null,
+    project,
     includePaths,
     nodeBinaryPath = process.execPath,
     customRulesOnly = false,
     respectInlineDisables = true,
     adoptExistingLintConfig = true,
+    ignoredTags = new Set<string>(),
   } = options;
 
   validateRuleRegistration();
@@ -983,13 +949,10 @@ export const runOxlint = async (options: RunOxlintOptions): Promise<Diagnostic[]
   const extendsPaths = detectedConfigPaths.filter(canOxlintExtendConfig);
   const config = createOxlintConfig({
     pluginPath,
-    framework,
-    hasReactCompiler,
-    hasTanStackQuery,
+    project,
     customRulesOnly,
-    reactMajorVersion,
-    tailwindVersion,
     extendsPaths,
+    ignoredTags,
   });
   // HACK: only neutralize disable comments in audit mode. Default
   // behavior respects the user's existing `// eslint-disable*` /
@@ -1002,7 +965,7 @@ export const runOxlint = async (options: RunOxlintOptions): Promise<Diagnostic[]
     const oxlintBinary = resolveOxlintBinary();
     const baseArgs = [oxlintBinary, "-c", configPath, "--format", "json"];
 
-    if (hasTypeScript) {
+    if (project.hasTypeScript) {
       const tsconfigRelativePath = resolveTsConfigRelativePath(rootDirectory);
       if (tsconfigRelativePath) {
         baseArgs.push("--tsconfig", tsconfigRelativePath);
@@ -1066,13 +1029,10 @@ export const runOxlint = async (options: RunOxlintOptions): Promise<Diagnostic[]
       if (extendsPaths.length === 0) throw error;
       const fallbackConfig = createOxlintConfig({
         pluginPath,
-        framework,
-        hasReactCompiler,
-        hasTanStackQuery,
+        project,
         customRulesOnly,
-        reactMajorVersion,
-        tailwindVersion,
         extendsPaths: [],
+        ignoredTags,
       });
       writeOxlintConfig(fallbackConfig);
       return await spawnLintBatches();
