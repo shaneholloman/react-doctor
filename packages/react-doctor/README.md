@@ -412,6 +412,52 @@ When on a feature branch without explicit flags, you'll be prompted: "Only scan 
 
 `--staged` and `--diff` cannot be combined.
 
+### Pre-commit hooks with Husky + lint-staged
+
+The most common setup is [Husky](https://typicode.github.io/husky/) for the git hook and [lint-staged](https://github.com/lint-staged/lint-staged) to filter which files run through each tool. React Doctor's `--staged` mode is built for this: it reads file contents from the git **index** (not the working tree) and materializes them into a temp directory, so partially-staged files are scanned exactly as they will be committed.
+
+Install both, then wire them up:
+
+```bash
+npx ni -D husky lint-staged
+npx husky init
+```
+
+`husky init` creates `.husky/pre-commit`. Replace its contents with:
+
+```bash
+npx lint-staged
+```
+
+Then add a `lint-staged` block to your `package.json`. Because React Doctor already filters to the staged set via `--staged`, **do not pass the lint-staged-injected file list** — invoke it with a single command and let it discover the index itself:
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": "react-doctor --staged --fail-on warning"
+  }
+}
+```
+
+A few notes that bite people:
+
+- **Don't append `{staged-files}`** — lint-staged would otherwise pass the matched paths as positional arguments and you'd get the union (path filter + index scan) instead of the intent.
+- **Use the function form when you only want the hook to run if any matching file is staged** but still want a single project-wide scan:
+
+  ```js
+  // lint-staged.config.js
+  export default {
+    "*.{ts,tsx,js,jsx}": () => "react-doctor --staged --fail-on warning",
+  };
+  ```
+
+- **`--fail-on warning`** blocks the commit on any diagnostic. Use `--fail-on error` for a softer gate, or `--fail-on none` to lint advisory-only.
+- **Index vs. working tree:** `--staged` reflects `git diff --cached`, not your editor buffer. If you `git add` half a file and keep typing, only the added half is scanned — the unstaged tail is ignored.
+- **Skip in CI:** lint-staged is a pre-commit concern. In CI, use the GitHub Action (above) or `react-doctor --diff <base>` directly; running both does duplicate work.
+- **Other hook managers:** the same `react-doctor --staged --fail-on warning` command works under [Lefthook](https://lefthook.dev/), [pre-commit](https://pre-commit.com/), or a hand-written `.git/hooks/pre-commit` — `--staged` is hook-manager-agnostic.
+
+To bypass the hook for a one-off commit, use `git commit --no-verify`.
+
 ## Agent and CI integration
 
 React Doctor detects 50+ coding agents (Claude Code, Cursor, Codex, OpenCode, Windsurf, and more) and adapts its behavior automatically:
