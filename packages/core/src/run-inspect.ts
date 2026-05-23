@@ -119,7 +119,16 @@ export const runInspect = <HooksR = never>(
 ): Effect.Effect<
   InspectOutput,
   ReactDoctorError,
-  Project | Config | DeadCode | Files | Git | Linter | LintPartialFailures | Reporter | Score | HooksR
+  | Project
+  | Config
+  | DeadCode
+  | Files
+  | Git
+  | Linter
+  | LintPartialFailures
+  | Reporter
+  | Score
+  | HooksR
 > =>
   // `Effect.withSpan("runInspect", { attributes })` turns the entire
   // orchestrator into a single named OTel span; child service spans
@@ -150,13 +159,13 @@ export const runInspect = <HooksR = never>(
     }
     const [repo, sha, defaultBranch] = yield* Effect.all(
       [
-        gitService.githubRepo(scanDirectory).pipe(
-          Effect.orElseSucceed(() => null as string | null),
-        ),
+        gitService
+          .githubRepo(scanDirectory)
+          .pipe(Effect.orElseSucceed(() => null as string | null)),
         gitService.headSha(scanDirectory).pipe(Effect.orElseSucceed(() => null as string | null)),
-        gitService.defaultBranch(scanDirectory).pipe(
-          Effect.orElseSucceed(() => null as string | null),
-        ),
+        gitService
+          .defaultBranch(scanDirectory)
+          .pipe(Effect.orElseSucceed(() => null as string | null)),
       ],
       { concurrency: 3 },
     );
