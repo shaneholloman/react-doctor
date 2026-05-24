@@ -47,7 +47,7 @@ export const runExplain = async (
   const scanResult = await inspect(targetDirectory, {
     ...context.scanOptions,
     silent: true,
-    offline: true,
+    noScore: true,
     configOverride: context.userConfig,
   });
 

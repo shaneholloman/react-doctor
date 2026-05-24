@@ -5,6 +5,7 @@ import { installAction } from "./commands/install.js";
 import { exitGracefully } from "./utils/exit-gracefully.js";
 import { handleError } from "./utils/handle-error.js";
 import { isJsonModeActive, writeJsonErrorReport } from "./utils/json-mode.js";
+import { stripUnknownCliFlags } from "./utils/strip-unknown-cli-flags.js";
 import { VERSION } from "./utils/version.js";
 
 process.on("SIGINT", exitGracefully);
@@ -33,7 +34,7 @@ const program = new Command()
     "--diff [base]",
     "scan only files changed vs base branch (pass `false` to disable; overridden by --full)",
   )
-  .option("--offline", "skip the score API and the share URL (no score is shown)")
+  .option("--no-score", "skip the score API and the share URL")
   .option("--staged", "scan only staged (git index) files for pre-commit hooks")
   .option(
     "--fail-on <level>",
@@ -88,7 +89,7 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EPIPE") process.exit(0);
 });
 
-program.parseAsync().catch((error: unknown) => {
+program.parseAsync(stripUnknownCliFlags(process.argv)).catch((error: unknown) => {
   if (isJsonModeActive()) {
     writeJsonErrorReport(error);
     process.exit(1);

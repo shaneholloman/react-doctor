@@ -11,7 +11,6 @@ export interface InspectFlags {
   jsonCompact?: boolean;
   yes?: boolean;
   full?: boolean;
-  offline?: boolean;
   annotations?: boolean;
   staged?: boolean;
   prComment?: boolean;

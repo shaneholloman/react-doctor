@@ -23,7 +23,7 @@ if (!existsSync(FIXTURE_DIRECTORY)) {
   process.exit(1);
 }
 
-// `--offline --no-lint --no-dead-code` keeps the run fast and
+// `--no-score --no-lint --no-dead-code` keeps the run fast and
 // deterministic — we're checking that the CLI plumbing produces a
 // schema-valid v1 JsonReport, not that any particular rule fires.
 // The eval harness (react-doctor-evals parity check) is the right
@@ -31,7 +31,7 @@ if (!existsSync(FIXTURE_DIRECTORY)) {
 // regressions to the JSON output across refactor PRs.
 const result = spawnSync(
   process.execPath,
-  [CLI_BINARY_PATH, FIXTURE_DIRECTORY, "--offline", "--no-lint", "--no-dead-code", "--json"],
+  [CLI_BINARY_PATH, FIXTURE_DIRECTORY, "--no-score", "--no-lint", "--no-dead-code", "--json"],
   { encoding: "utf-8", maxBuffer: 50 * 1024 * 1024 },
 );
 

@@ -37,16 +37,18 @@ describe("GitHub Action contract", () => {
     expect(scoreStep).toContain("|| true");
   });
 
-  it("issue #302: exposes a `score` output and threads `offline` into the score step", () => {
+  it("issue #302: exposes a `score` output and threads score opt-out into the score step", () => {
     const actionYaml = readActionYaml();
     const outputsBlock = extractBlock(actionYaml, "outputs:", "\nruns:");
+    const inputsBlock = extractBlock(actionYaml, "inputs:", "\noutputs:");
     const scoreStep = normalizeWhitespace(extractStep(actionYaml, "- id: score"));
 
+    expect(inputsBlock).toContain("  no-score:");
+    expect(inputsBlock).not.toContain("  offline:");
     expect(outputsBlock).toContain("${{ steps.score.outputs.score }}");
-    expect(scoreStep).toContain("INPUT_OFFLINE: ${{ inputs.offline }}");
-    expect(scoreStep).toContain(
-      'if [ "$INPUT_OFFLINE" = "true" ]; then SCORE_ARGS+=("--offline"); fi',
-    );
+    expect(scoreStep).toContain("INPUT_NO_SCORE: ${{ inputs.no-score }}");
+    expect(scoreStep).not.toContain("INPUT_OFFLINE");
+    expect(scoreStep).toContain('if [ "$INPUT_NO_SCORE" = "true" ]; then exit 0; fi');
   });
 
   it("issue #188 + #61: action exposes CI inputs used by the scan step", () => {

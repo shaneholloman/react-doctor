@@ -100,7 +100,7 @@ export interface ReactDoctorConfig {
   failOn?: FailOnLevel;
   customRulesOnly?: boolean;
   share?: boolean;
-  offline?: boolean;
+  noScore?: boolean;
   /**
    * Redirect react-doctor at a different project directory than the one
    * it was invoked against. Resolved relative to the location of the

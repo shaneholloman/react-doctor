@@ -20,6 +20,7 @@ describe("validateConfigTypes", () => {
     const input: ReactDoctorConfig = {
       lint: true,
       verbose: true,
+      noScore: true,
       respectInlineDisables: false,
     };
     expect(validateConfigTypes(input)).toEqual(input);

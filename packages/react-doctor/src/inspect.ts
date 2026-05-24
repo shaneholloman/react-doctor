@@ -60,7 +60,7 @@ interface ResolvedInspectOptions {
   deadCode: boolean;
   verbose: boolean;
   scoreOnly: boolean;
-  offline: boolean;
+  noScore: boolean;
   isCi: boolean;
   silent: boolean;
   includePaths: string[];
@@ -88,7 +88,7 @@ const mergeInspectOptions = (
   deadCode: inputOptions.deadCode ?? userConfig?.deadCode ?? true,
   verbose: inputOptions.verbose ?? userConfig?.verbose ?? false,
   scoreOnly: inputOptions.scoreOnly ?? false,
-  offline: inputOptions.offline ?? false,
+  noScore: inputOptions.noScore ?? userConfig?.noScore ?? false,
   isCi: inputOptions.isCi ?? false,
   silent: inputOptions.silent ?? false,
   includePaths: inputOptions.includePaths ?? [],
@@ -360,7 +360,7 @@ const runInspectWithRuntime = async (
     output.userConfig,
   );
   const score =
-    didLintFail || options.offline
+    didLintFail || options.noScore
       ? null
       : await calculateScore([...scoreDiagnostics], {
           isCi: options.isCi,
@@ -427,8 +427,8 @@ const finalizeAndRender = (input: FinalizeInput): Effect.Effect<InspectResult> =
     if (didDeadCodeFail) skippedChecks.push("dead-code");
     const hasSkippedChecks = skippedChecks.length > 0;
 
-    const noScoreMessage = options.offline
-      ? "Score unavailable in offline mode."
+    const noScoreMessage = options.noScore
+      ? "Score disabled by --no-score."
       : "Score unavailable (could not reach the score API).";
 
     const skippedCheckReasons: Record<string, string> = {};
@@ -509,7 +509,7 @@ const finalizeAndRender = (input: FinalizeInput): Effect.Effect<InspectResult> =
       yield* Console.log("");
     }
 
-    const shouldShowShareLink = !options.offline && options.share && !options.isCi;
+    const shouldShowShareLink = !options.noScore && options.share && !options.isCi;
     yield* printSummary({
       diagnostics: [...surfaceDiagnostics],
       elapsedMilliseconds,

@@ -23,8 +23,8 @@ inputs:
   fail-on:
     description: "Exit non-zero when diagnostics fire (error, warning, none). Gates on individual diagnostics in the scanned files, not on the score. Combine with `diff` for regression-only gating, or read the `score` output in a follow-up step to enforce an absolute score floor."
     default: "error"
-  offline:
-    description: "Skip the score API. Offline runs print no score and leave the `score` output empty."
+  no-score:
+    description: "Skip the score API. Runs print no score and leave the `score` output empty."
     default: "false"
   annotations:
     description: "Emit diagnostics as GitHub Actions annotations so findings show inline in the PR's Files changed view. Combine with `github-token` for both annotations and a sticky comment."
@@ -35,7 +35,7 @@ inputs:
 
 outputs:
   score:
-    description: "Health score (0-100). Empty in offline mode or when the score API was unreachable."
+    description: "Health score (0-100). Empty when scoring is disabled or when the score API was unreachable."
     value: ${{ steps.score.outputs.score }}
 
 runs:
@@ -66,7 +66,7 @@ runs:
         INPUT_DIFF: ${{ inputs.diff }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
-        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_NO_SCORE: ${{ inputs.no-score }}
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         RUNNER_TEMP: ${{ runner.temp }}
         GITHUB_RUN_ID: ${{ github.run_id }}
@@ -75,7 +75,7 @@ runs:
         if [ "$INPUT_VERBOSE" = "true" ]; then FLAGS+=("--verbose"); fi
         if [ -n "$INPUT_PROJECT" ]; then FLAGS+=("--project" "$INPUT_PROJECT"); fi
         if [ -n "$INPUT_DIFF" ]; then FLAGS+=("--diff" "$INPUT_DIFF"); fi
-        if [ "$INPUT_OFFLINE" = "true" ]; then FLAGS+=("--offline"); fi
+        if [ "$INPUT_NO_SCORE" = "true" ]; then FLAGS+=("--no-score"); fi
         if [ "$INPUT_ANNOTATIONS" = "true" ]; then FLAGS+=("--annotations"); fi
 
         OUTPUT_FILE="${RUNNER_TEMP:-/tmp}/react-doctor-output-${GITHUB_RUN_ID:-$$}.txt"
@@ -106,15 +106,15 @@ runs:
       shell: bash
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
-        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_NO_SCORE: ${{ inputs.no-score }}
       run: |
         # HACK: --score is an output-collection step, not a gate. Force
         # --fail-on none so older react-doctor releases (which exit
         # non-zero when the score lands in the "Needs work" band, even
         # though the value itself is the only meaningful signal here)
         # don't fail the composite action under `set -e -o pipefail`.
+        if [ "$INPUT_NO_SCORE" = "true" ]; then exit 0; fi
         SCORE_ARGS=("$INPUT_DIRECTORY" "--score" "--fail-on" "none")
-        if [ "$INPUT_OFFLINE" = "true" ]; then SCORE_ARGS+=("--offline"); fi
         SCORE=$(npx react-doctor@latest "${SCORE_ARGS[@]}" 2>/dev/null | tail -1 | tr -d '[:space:]') || true
         if [[ -n "$SCORE" && "$SCORE" =~ ^[0-9]+$ ]]; then
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"

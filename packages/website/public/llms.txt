@@ -60,10 +60,10 @@ Use `--fail-on <level>` to control exit codes (`error`, `warning`, `none`):
 npx react-doctor@latest --fail-on error
 ```
 
-Use `--offline` to skip the score API and the share URL. Offline runs print no score; the rest of the report renders normally:
+Use `--no-score` to skip the score API and the share URL. Runs with scoring disabled print no score; the rest of the report renders normally:
 
 ```bash
-npx react-doctor@latest --offline
+npx react-doctor@latest --no-score
 ```
 
 Install the skill into your coding agent (50+ agents supported via agent-install: Claude Code, Codex, Cursor, Factory Droid, Gemini CLI, GitHub Copilot, Goose, OpenCode, Pi, Windsurf, Roo Code, Cline, Kilo Code, Warp, Replit, OpenHands, Continue, and more):
@@ -88,7 +88,7 @@ Options:
   --full             skip prompts, always run a full scan (decline diff-only)
   --project <name>   select workspace project (comma-separated for multiple)
   --diff [base]      scan only files changed vs base branch or uncommitted changes
-  --offline          skip the score API and share URL (no score is shown)
+  --no-score         skip the score API and share URL
   --staged           scan only staged (git index) files for pre-commit hooks
   --fail-on <level>  exit with error code on diagnostics: error, warning, none
   --annotations      output diagnostics as GitHub Actions annotations

@@ -314,7 +314,7 @@ export const runInspect = <HooksR = never>(
  * DeadCode; HTTP for Score; the silent Reporter (the orchestrator
  * already returns the diagnostic array via `Stream.runCollect`).
  *
- * Callers tweak by replacing individual layers: `--offline` swaps
+ * Callers tweak by replacing individual layers: `--no-score` swaps
  * `Score.layerHttp` for `Score.layerOf(null)`; `--no-lint` swaps
  * `Linter.layerOxlint` for `Linter.layerOf([])`; `--no-dead-code`
  * swaps `DeadCode.layerNode` for `DeadCode.layerOf([])`; a caller

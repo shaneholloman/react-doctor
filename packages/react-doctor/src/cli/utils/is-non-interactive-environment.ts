@@ -1,6 +1,6 @@
 // HACK: env vars that mean "user is not at an interactive shell." We use this
 // to skip prompts and disable the spinner animation but NOT to auto-flip
-// --offline, because dev shells often have JENKINS_URL / TF_BUILD set as
+// --no-score, because dev shells often have JENKINS_URL / TF_BUILD set as
 // ambient config without actually running in CI.
 //
 // `GIT_DIR` is set by git itself whenever it invokes a hook (per

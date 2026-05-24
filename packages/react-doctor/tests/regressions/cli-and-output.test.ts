@@ -80,7 +80,7 @@ describe("issue #50: CLI flags can re-enable lint that config disabled", () => {
     // even though the config said false.
     const { result } = await captureScanOutput(projectDir, {
       lint: true,
-      offline: true,
+      noScore: true,
       silent: true,
     });
     // If lint had stayed false we'd see it in skippedChecks (or no lint
@@ -94,7 +94,7 @@ describe("issue #50: CLI flags can re-enable lint that config disabled", () => {
     writeJson(path.join(projectDir, "react-doctor.config.json"), { lint: true });
     const { result } = await captureScanOutput(projectDir, {
       lint: false,
-      offline: true,
+      noScore: true,
       silent: true,
     });
     expect(result.diagnostics.filter((d) => d.plugin === "react-doctor")).toHaveLength(0);
@@ -146,7 +146,7 @@ export const App = ({ name }: { name: string }) => {
 };
 `,
     );
-    const defaultRun = await captureScanOutput(projectDir, { offline: false });
+    const defaultRun = await captureScanOutput(projectDir, { noScore: false });
     expect(defaultRun.stdout).toContain("Share your results");
 
     const projectDir2 = setupMinimalReactProject("issue-92-disabled");
@@ -161,7 +161,7 @@ export const App = ({ name }: { name: string }) => {
 `,
     );
     writeJson(path.join(projectDir2, "react-doctor.config.json"), { share: false });
-    const disabledRun = await captureScanOutput(projectDir2, { offline: false });
+    const disabledRun = await captureScanOutput(projectDir2, { noScore: false });
     expect(disabledRun.stdout).not.toContain("Share your results");
   });
 });
@@ -189,7 +189,7 @@ export const Cart = () => {
 
     const { stdout } = await captureScanOutput(projectDir, {
       lint: true,
-      offline: true,
+      noScore: true,
     });
     const normalizedStdout = stripAnsi(stdout);
 
@@ -208,7 +208,7 @@ describe("issue #135: lint failures surface in skippedChecks", () => {
     const projectDir = setupMinimalReactProject("issue-135");
     const { result } = await captureScanOutput(projectDir, {
       lint: false,
-      offline: true,
+      noScore: true,
       silent: true,
     });
     // Type contract: skippedChecks always exists as an array.

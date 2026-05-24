@@ -223,7 +223,7 @@ describe("installReactDoctorAgentHooks", () => {
     ).toBe(realpathSync(fixture.projectRoot));
     expect(
       readFileSync(path.join(fixture.projectRoot, ".react-doctor/agent-hook-args.txt"), "utf8"),
-    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--offline\n");
+    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--no-score\n");
     expect(parsedOutput.additional_context).toContain("fake scan output");
   });
 
@@ -303,7 +303,7 @@ describe("installReactDoctorAgentHooks", () => {
         path.join(fixture.projectRoot, ".react-doctor/path-agent-hook-args.txt"),
         "utf8",
       ),
-    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--offline\n");
+    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--no-score\n");
     expect(parsedOutput.additional_context).toContain("path scan output");
   });
 
@@ -375,7 +375,7 @@ describe("installReactDoctorAgentHooks", () => {
     expect(output).toBe("");
     expect(
       readFileSync(path.join(fixture.projectRoot, ".react-doctor/agent-hook-args.txt"), "utf8"),
-    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--offline\n");
+    ).toBe("--verbose\n--diff\n--fail-on\nwarning\n--no-score\n");
   });
 
   it("skips generated agent hooks for non-edit single tool events", () => {

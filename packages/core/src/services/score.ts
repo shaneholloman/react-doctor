@@ -21,7 +21,7 @@ export class Score extends Context.Service<
    * propagating through the error channel — score isn't load-bearing
    * for the linter contract, and the renderer distinguishes "user
    * opted out" from "we tried and failed" via a separate `noScoreMessage`
-   * the caller picks based on `--offline`.
+   * the caller picks based on `--no-score`.
    *
    * `Effect.fn("Score.compute")` wraps the body so the effect carries
    * an OpenTelemetry-compatible span name out of the box (canonical

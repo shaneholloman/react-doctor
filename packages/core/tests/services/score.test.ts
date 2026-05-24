@@ -13,7 +13,7 @@ describe("Score.layerOf", () => {
     expect(result).toEqual({ score: 85, label: "Good" });
   });
 
-  it("returns null when configured offline-style (layerOf(null))", async () => {
+  it("returns null when configured with scoring disabled (layerOf(null))", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const score = yield* Score;

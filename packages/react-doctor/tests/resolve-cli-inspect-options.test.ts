@@ -25,20 +25,20 @@ describe("resolveCliInspectOptions: CI behavior (issue #302)", () => {
     }
   });
 
-  it("does not auto-flip offline in CI; the score path still runs", () => {
+  it("does not auto-disable scoring in CI; the score path still runs", () => {
     process.env.GITHUB_ACTIONS = "true";
 
     const resolved = resolveCliInspectOptions({}, null);
 
-    expect(resolved.offline).toBe(false);
+    expect(resolved.noScore).toBe(false);
     expect(resolved.isCi).toBe(true);
   });
 
   it("respects an explicit user opt-out (CLI flag or config) in CI", () => {
     process.env.GITHUB_ACTIONS = "true";
 
-    expect(resolveCliInspectOptions({ offline: true }, null).offline).toBe(true);
-    expect(resolveCliInspectOptions({}, { offline: true }).offline).toBe(true);
+    expect(resolveCliInspectOptions({ score: false }, null).noScore).toBe(true);
+    expect(resolveCliInspectOptions({}, { noScore: true }).noScore).toBe(true);
   });
 
   it("leaves isCi false outside CI", () => {

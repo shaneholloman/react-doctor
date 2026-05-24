@@ -26,10 +26,10 @@ export interface InspectOptions {
   deadCode?: boolean;
   verbose?: boolean;
   scoreOnly?: boolean;
-  offline?: boolean;
+  noScore?: boolean;
   /**
    * Marks the run as CI-originated. Suppresses the share URL in the
-   * printed summary; does not imply `--offline`.
+   * printed summary; does not imply `--no-score`.
    */
   isCi?: boolean;
   silent?: boolean;
