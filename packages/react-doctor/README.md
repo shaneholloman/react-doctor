@@ -6,15 +6,13 @@
 
 [![version](https://img.shields.io/npm/v/react-doctor?style=flat&colorA=000000&colorB=000000)](https://npmjs.com/package/react-doctor)
 [![downloads](https://img.shields.io/npm/dt/react-doctor.svg?style=flat&colorA=000000&colorB=000000)](https://npmjs.com/package/react-doctor)
-[![GitHub Action](https://img.shields.io/badge/GitHub%20Action-React%20Doctor-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/react-doctor)
+[![GitHub Action](https://img.shields.io/badge/GitHub%20Action-React%20Doctor-000000?style=flat&labelColor=000000&logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/react-doctor)
 
 Your agent writes bad React, this catches it.
 
 React Doctor deterministically scans your codebase and finds issues across state & effects, performance, architecture, security, and accessibility.
 
 Works for all React frameworks and libraries - Next.js, Vite, TanStack, React Native, Expo, you name it.
-
-[Website](https://react.doctor) · [Docs](https://react.doctor/docs)
 
 ## Install
 
