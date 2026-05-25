@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Diagnostic, ReactDoctorConfig } from "@react-doctor/core";
-import { applySeverityControls } from "@react-doctor/core";
+import { createNodeReadFileLinesSync, mergeAndFilterDiagnostics } from "@react-doctor/core";
+
+const SEVERITY_TEST_ROOT = "/tmp/severity-controls";
+const noopReadFileLines = createNodeReadFileLinesSync(SEVERITY_TEST_ROOT);
+
+// Severity controls are exercised through the unified pipeline now.
+// The legacy `applySeverityControls(diagnostics, config)` helper is
+// gone — the same surface is reachable via `mergeAndFilterDiagnostics`
+// with inline disables off (severity overrides run before
+// suppressions, so the inline-disable flag doesn't affect the result).
+const applySeverityControls = (
+  diagnostics: Diagnostic[],
+  config: ReactDoctorConfig | null,
+): Diagnostic[] =>
+  mergeAndFilterDiagnostics(diagnostics, SEVERITY_TEST_ROOT, config, noopReadFileLines, {
+    respectInlineDisables: false,
+  });
 
 const designDiagnostic: Diagnostic = {
   filePath: "src/App.tsx",
@@ -44,11 +60,11 @@ const nativePortedDiagnostic: Diagnostic = {
   rule: "no-danger",
 };
 
-describe("applySeverityControls", () => {
+describe("severity controls (via mergeAndFilterDiagnostics)", () => {
   it("returns input unchanged when no top-level severity fields are configured", () => {
     const diagnostics = [designDiagnostic, rnDiagnostic];
-    expect(applySeverityControls(diagnostics, null)).toBe(diagnostics);
-    expect(applySeverityControls(diagnostics, {})).toBe(diagnostics);
+    expect(applySeverityControls(diagnostics, null)).toEqual(diagnostics);
+    expect(applySeverityControls(diagnostics, {})).toEqual(diagnostics);
   });
 
   it('drops diagnostics whose category is set to "off" via top-level `categories`', () => {

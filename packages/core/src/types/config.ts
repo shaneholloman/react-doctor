@@ -49,7 +49,7 @@ export type RuleSeverityOverride = "error" | "warn" | "off";
 
 /**
  * Internal shape consumed by `resolveRuleSeverityOverride` and
- * `applySeverityControls`. Assembled at runtime from the top-level
+ * `buildDiagnosticPipeline`. Assembled at runtime from the top-level
  * `rules` and `categories` fields on `ReactDoctorConfig`. Per-rule
  * wins over per-category when both match the same diagnostic.
  */

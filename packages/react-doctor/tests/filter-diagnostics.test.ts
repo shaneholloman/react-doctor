@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Diagnostic, ReactDoctorConfig } from "@react-doctor/core";
-import { createNodeReadFileLinesSync, filterIgnoredDiagnostics } from "@react-doctor/core";
+import { createNodeReadFileLinesSync, mergeAndFilterDiagnostics } from "@react-doctor/core";
 
 const TEST_ROOT_DIRECTORY = "/home/user/project";
 const testReadFileLines = createNodeReadFileLinesSync(TEST_ROOT_DIRECTORY);
+
+// `filterIgnoredDiagnostics` was the legacy array-shaped helper that
+// only applied ignore rules / files / overrides. After the pipeline
+// unification it is gone; tests exercise the same surface through
+// `mergeAndFilterDiagnostics` with inline disables off (the legacy
+// helper did not look at inline directives).
+const filterIgnoredDiagnostics = (
+  diagnostics: Diagnostic[],
+  config: ReactDoctorConfig,
+  rootDirectory: string,
+  readFileLinesSync: (filePath: string) => string[] | null,
+): Diagnostic[] =>
+  mergeAndFilterDiagnostics(diagnostics, rootDirectory, config, readFileLinesSync, {
+    respectInlineDisables: false,
+  });
 
 const createDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic => ({
   filePath: "src/app.tsx",
@@ -18,7 +33,7 @@ const createDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic => ({
   ...overrides,
 });
 
-describe("filterIgnoredDiagnostics", () => {
+describe("mergeAndFilterDiagnostics — ignore rules / files / overrides", () => {
   it("returns all diagnostics when config has no ignore rules", () => {
     const diagnostics = [createDiagnostic()];
     const config: ReactDoctorConfig = {};

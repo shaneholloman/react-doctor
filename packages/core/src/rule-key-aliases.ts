@@ -5,7 +5,7 @@
 //
 // The map enables backward compatibility on every surface that takes
 // rule keys from user config: `ignore.rules`, severity overrides in
-// `rules`, the `applySeverityControls` path, and inline-suppression
+// `rules`, the `buildDiagnosticPipeline` severity path, and inline-suppression
 // matching via `isSameRuleKey`. Without an entry here, a user config
 // targeting the old key silently no-ops after upgrade.
 //

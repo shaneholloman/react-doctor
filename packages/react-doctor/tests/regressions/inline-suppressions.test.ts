@@ -17,7 +17,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vite-plus/test";
 
 import type { Diagnostic } from "@react-doctor/core";
-import { createNodeReadFileLinesSync, filterInlineSuppressions } from "@react-doctor/core";
+import { createNodeReadFileLinesSync, mergeAndFilterDiagnostics } from "@react-doctor/core";
 import { buildDiagnostic, writeFile } from "./_helpers.js";
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rd-inline-suppression-"));
@@ -38,7 +38,12 @@ const runFilter = (
 ): Diagnostic[] => {
   const projectDir = path.join(tempRoot, caseId);
   writeFile(path.join(projectDir, "src", "app.tsx"), fileContents);
-  return filterInlineSuppressions(diagnostics, projectDir, createNodeReadFileLinesSync(projectDir));
+  return mergeAndFilterDiagnostics(
+    diagnostics,
+    projectDir,
+    null,
+    createNodeReadFileLinesSync(projectDir),
+  );
 };
 
 const baseDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic =>

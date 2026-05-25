@@ -20,10 +20,25 @@ import type { ReactDoctorConfig } from "@react-doctor/core";
 import {
   checkReducedMotion,
   createNodeReadFileLinesSync,
-  filterIgnoredDiagnostics,
   mergeAndFilterDiagnostics,
   runOxlint,
 } from "@react-doctor/core";
+
+// Adapter so the existing test bodies stay readable. The legacy
+// `filterIgnoredDiagnostics` helper applied only ignore filters + the
+// `rn-no-raw-text` text-component / wrapper checks; today both live in
+// the unified pipeline reachable through `mergeAndFilterDiagnostics`
+// (with inline disables off, since the legacy helper did not look at
+// inline directives).
+const filterIgnoredDiagnostics = (
+  diagnostics: Parameters<typeof mergeAndFilterDiagnostics>[0],
+  config: Parameters<typeof mergeAndFilterDiagnostics>[2],
+  rootDirectory: Parameters<typeof mergeAndFilterDiagnostics>[1],
+  readFileLinesSync: Parameters<typeof mergeAndFilterDiagnostics>[3],
+) =>
+  mergeAndFilterDiagnostics(diagnostics, rootDirectory, config, readFileLinesSync, {
+    respectInlineDisables: false,
+  });
 import {
   buildDiagnostic,
   buildTestProject,
