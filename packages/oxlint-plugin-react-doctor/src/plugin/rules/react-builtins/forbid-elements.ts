@@ -1,6 +1,7 @@
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
+import { flattenJsxName } from "../../utils/flatten-jsx-name.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isReactFunctionCall } from "../../utils/is-react-function-call.js";
 import type { Rule } from "../../utils/rule.js";
@@ -31,16 +32,6 @@ const resolveSettings = (
     else map.set(item.element, item.message);
   }
   return map;
-};
-
-const flattenJsxName = (node: EsTreeNode): string | null => {
-  if (isNodeOfType(node, "JSXIdentifier")) return node.name;
-  if (isNodeOfType(node, "JSXMemberExpression")) {
-    const objectName = flattenJsxName(node.object);
-    if (!objectName) return null;
-    return `${objectName}.${node.property.name}`;
-  }
-  return null;
 };
 
 const flattenMemberName = (node: EsTreeNode): string | null => {

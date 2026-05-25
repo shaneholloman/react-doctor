@@ -1,6 +1,7 @@
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
+import { flattenJsxName } from "../../utils/flatten-jsx-name.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isReactComponentName } from "../../utils/is-react-component-name.js";
 import { stripParenExpression } from "../../utils/strip-paren-expression.js";
@@ -30,16 +31,6 @@ const resolveSettings = (
     explicitSpread: ruleSettings.explicitSpread ?? "enforce",
     exceptions: ruleSettings.exceptions ?? [],
   };
-};
-
-const flattenJsxName = (node: EsTreeNode): string | null => {
-  if (isNodeOfType(node, "JSXIdentifier")) return node.name;
-  if (isNodeOfType(node, "JSXMemberExpression")) {
-    const objectName = flattenJsxName(node.object);
-    if (!objectName) return null;
-    return `${objectName}.${node.property.name}`;
-  }
-  return null;
 };
 
 // Port of `oxc_linter::rules::react::jsx_props_no_spreading`. Reports
