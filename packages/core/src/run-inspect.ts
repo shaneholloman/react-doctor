@@ -23,6 +23,7 @@ import { DeadCode } from "./services/dead-code.js";
 import { Files } from "./services/files.js";
 import { Git } from "./services/git.js";
 import { LintPartialFailures, Linter } from "./services/linter.js";
+import { Progress } from "./services/progress.js";
 import { Project } from "./services/project.js";
 import { Reporter } from "./services/reporter.js";
 import { Score } from "./services/score.js";
@@ -83,10 +84,13 @@ export interface InspectOutput {
 
 /**
  * Hooks the caller participates in without owning the orchestration.
- * Today the CLI uses them to render the project-detection block
- * before lint and to drive the spinner; a future LSP host would
- * publish per-diagnostic notifications by providing a Reporter
- * layer (not a hook).
+ * Today the CLI uses `beforeLint` to render the project-detection
+ * block before lint runs; `afterLint` is invoked once lint (and any
+ * downstream dead-code) finishes so the caller can attach side-effects
+ * keyed on whether lint failed. Per-phase spinner reporting is owned
+ * by the `Progress` service — the caller provides `Progress.layerOra`
+ * or `Progress.layerNoop` rather than threading spinner handles
+ * through hooks.
  */
 export interface InspectHooks<HooksR = never> {
   readonly beforeLint?: (
@@ -116,26 +120,49 @@ const fileReader =
     return lines === null ? null : [...lines];
   };
 
+const LINT_FAIL_TEXT = "Lint checks failed (non-fatal, skipping).";
+const LINT_SUCCESS_TEXT = "Running lint checks.";
+const LINT_NATIVE_BINDING_FAIL_TEXT = (nodeVersion: string): string =>
+  `Lint checks failed — oxlint native binding not found (Node ${nodeVersion}).`;
+
+const DEAD_CODE_FAIL_TEXT = "Dead-code analysis failed (non-fatal, skipping).";
+const DEAD_CODE_SUCCESS_TEXT = "Analyzing dead code.";
+
+const formatLintFailText = (
+  reasonTag: ReactDoctorErrorReason["_tag"] | null,
+  nodeVersion: string,
+): string => {
+  if (reasonTag === "OxlintUnavailable" || reasonTag === "OxlintSpawnFailed") {
+    return LINT_NATIVE_BINDING_FAIL_TEXT(nodeVersion);
+  }
+  return LINT_FAIL_TEXT;
+};
+
 /**
  * The full inspect orchestration as a single composable Effect.
  *
- * Wires the 8 services into a streaming pipeline:
+ * Phases (each one is a separate `Stream.runCollect` so the
+ * `Progress` service can render a per-phase status line):
  *
- *   Config.resolve(directory)
- *     -> Project.discover(resolvedDirectory)
- *     -> Git metadata for score attribution
- *     -> Stream.fromIterable(env diagnostics: reduced-motion + pnpm hardening)
- *     -> Stream.concat(Linter.run(...))    [folds ReactDoctorError into Ref]
- *     -> Stream.concat(DeadCode.run(...))  [folds Error into Ref]
- *     -> Stream.filterMap(perElementPipeline.apply)  [auto-suppress / severity / ignore / inline]
- *     -> Stream.tap(Reporter.emit)         [side-channel: future LSP / NDJSON]
- *     -> Stream.runCollect
- *     -> Score.compute(filtered)
+ *   1. Config.resolve(directory) → Project.discover → Git metadata
+ *   2. beforeLint hook (e.g. CLI renders the project-detection block)
+ *   3. environment checks (reduced-motion + pnpm hardening) — emitted
+ *      through the per-element pipeline so they participate in
+ *      auto-suppress / severity / ignore / inline rules.
+ *   4. Linter.run — fold `ReactDoctorError` into Ref state so a
+ *      lint failure surfaces via `skippedCheckReasons` rather than
+ *      sinking the whole scan. Wrapped in `Progress.start("Running
+ *      lint checks...")` for terminal feedback.
+ *   5. afterLint hook
+ *   6. DeadCode.run (gated on `runDeadCode && !isDiffMode`) — same
+ *      Ref-fold pattern. Wrapped in `Progress.start("Analyzing dead
+ *      code...")`.
+ *   7. Reporter.finalize (side-channel: future LSP / NDJSON)
+ *   8. Score.compute against the surface-filtered diagnostic set
  *
- * Lint and dead-code failures are folded via `Stream.catchTag` into
- * Ref state on the orchestrator side — they don't sink the whole
- * scan, and the renderer (cli or programmatic api) surfaces them
- * via `skippedCheckReasons`.
+ * The orchestrator owns spinner lifecycle via `Progress`; callers
+ * choose `Progress.layerOra(...)` for CLI feedback or
+ * `Progress.layerNoop` for silent / programmatic runs.
  */
 export const runInspect = <HooksR = never>(
   input: InspectInput,
@@ -150,17 +177,11 @@ export const runInspect = <HooksR = never>(
   | Git
   | Linter
   | LintPartialFailures
+  | Progress
   | Reporter
   | Score
   | HooksR
 > =>
-  // `Effect.withSpan("runInspect", { attributes })` turns the entire
-  // orchestrator into a single named OTel span; child service spans
-  // (`Project.discover`, `Linter.run`, `DeadCode.run`, `Score.compute`)
-  // hang off it. With no tracing layer provided, zero runtime cost.
-  // With `Otlp.layerJson(...)` provided, the user gets the whole
-  // scan as one trace — same shape as `react-doctor-evals`'
-  // `Runner.run` / `WorkerPool.invoke` instrumentation.
   Effect.gen(function* () {
     const projectService = yield* Project;
     const configService = yield* Config;
@@ -170,6 +191,7 @@ export const runInspect = <HooksR = never>(
     const scoreService = yield* Score;
     const deadCodeService = yield* DeadCode;
     const gitService = yield* Git;
+    const progressService = yield* Progress;
     const partialFailuresRef = yield* LintPartialFailures;
 
     const resolvedConfig: ResolvedConfig = yield* configService.resolve(input.directory);
@@ -220,17 +242,6 @@ export const runInspect = <HooksR = never>(
     const afterLint = hooks.afterLint ?? NO_HOOKS.afterLint;
     yield* beforeLint(project, lintIncludePaths ?? undefined);
 
-    const lintFailure = yield* Ref.make<{
-      didFail: boolean;
-      reason: string | null;
-      reasonTag: ReactDoctorErrorReason["_tag"] | null;
-    }>({ didFail: false, reason: null, reasonTag: null });
-
-    const deadCodeFailure = yield* Ref.make<{
-      didFail: boolean;
-      reason: string | null;
-    }>({ didFail: false, reason: null });
-
     const isDiffMode = input.includePaths.length > 0;
 
     const transform = buildDiagnosticPipeline({
@@ -240,11 +251,26 @@ export const runInspect = <HooksR = never>(
       respectInlineDisables: input.respectInlineDisables,
     });
 
+    const applyPerElementPipeline = <ToEnv>(rawStream: Stream.Stream<Diagnostic, never, ToEnv>) =>
+      rawStream.pipe(
+        Stream.filterMap(filterMapNullable<Diagnostic, Diagnostic>(transform.apply)),
+        Stream.tap((diagnostic) => reporterService.emit(diagnostic)),
+      );
+
+    // ── Phase: environment checks ──────────────────────────────────
     const environmentDiagnostics: ReadonlyArray<Diagnostic> = isDiffMode
       ? []
       : [...checkReducedMotion(scanDirectory), ...checkPnpmHardening(scanDirectory)];
+    const envCollected = yield* Stream.runCollect(
+      applyPerElementPipeline(Stream.fromIterable(environmentDiagnostics)),
+    );
 
-    const emptyDiagnosticStream: Stream.Stream<Diagnostic, never> = Stream.empty;
+    // ── Phase: lint ───────────────────────────────────────────────
+    const lintFailure = yield* Ref.make<{
+      didFail: boolean;
+      reason: string | null;
+      reasonTag: ReactDoctorErrorReason["_tag"] | null;
+    }>({ didFail: false, reason: null, reasonTag: null });
 
     const rawLintStream = linterService
       .run({
@@ -268,46 +294,64 @@ export const runInspect = <HooksR = never>(
                 reason: error.message,
                 reasonTag: error.reason._tag,
               });
-              return emptyDiagnosticStream;
+              return Stream.empty as Stream.Stream<Diagnostic, never>;
             }),
           ),
         ),
       );
 
-    const shouldRunDeadCode = input.runDeadCode && !isDiffMode;
-    const deadCodeStream: Stream.Stream<Diagnostic, never> = shouldRunDeadCode
-      ? deadCodeService
-          .run({ rootDirectory: scanDirectory, userConfig: resolvedConfig.config })
-          .pipe(
-            Stream.catchTag("ReactDoctorError", (error: ReactDoctorError) =>
-              Stream.unwrap(
-                Effect.gen(function* () {
-                  yield* Ref.set(deadCodeFailure, {
-                    didFail: true,
-                    reason: error.message,
-                  });
-                  return emptyDiagnosticStream;
-                }),
-              ),
-            ),
-          )
-      : emptyDiagnosticStream;
-
-    const transformedStream = Stream.fromIterable(environmentDiagnostics).pipe(
-      Stream.concat(rawLintStream),
-      Stream.concat(deadCodeStream),
-      Stream.filterMap(filterMapNullable<Diagnostic, Diagnostic>(transform.apply)),
-      Stream.tap((diagnostic) => reporterService.emit(diagnostic)),
-    );
-
-    const survivingDiagnostics = yield* Stream.runCollect(transformedStream);
-    yield* reporterService.finalize;
-
+    const lintProgress = yield* progressService.start("Running lint checks...");
+    const lintCollected = yield* Stream.runCollect(applyPerElementPipeline(rawLintStream));
     const lintFailureState = yield* Ref.get(lintFailure);
-    const deadCodeFailureState = yield* Ref.get(deadCodeFailure);
+    if (lintFailureState.didFail) {
+      yield* lintProgress.fail(formatLintFailText(lintFailureState.reasonTag, process.version));
+    } else {
+      yield* lintProgress.succeed(LINT_SUCCESS_TEXT);
+    }
     yield* afterLint(lintFailureState.didFail);
 
-    const finalDiagnostics: ReadonlyArray<Diagnostic> = [...survivingDiagnostics];
+    // ── Phase: dead-code (gated on runDeadCode && !isDiffMode) ────
+    const shouldRunDeadCode = input.runDeadCode && !isDiffMode;
+    const deadCodeFailure = yield* Ref.make<{ didFail: boolean; reason: string | null }>({
+      didFail: false,
+      reason: null,
+    });
+    let deadCodeCollected: Iterable<Diagnostic> = [];
+    if (shouldRunDeadCode) {
+      const rawDeadCodeStream = deadCodeService
+        .run({ rootDirectory: scanDirectory, userConfig: resolvedConfig.config })
+        .pipe(
+          Stream.catchTag("ReactDoctorError", (error: ReactDoctorError) =>
+            Stream.unwrap(
+              Effect.gen(function* () {
+                yield* Ref.set(deadCodeFailure, {
+                  didFail: true,
+                  reason: error.message,
+                });
+                return Stream.empty as Stream.Stream<Diagnostic, never>;
+              }),
+            ),
+          ),
+        );
+      const deadCodeProgress = yield* progressService.start("Analyzing dead code...");
+      deadCodeCollected = yield* Stream.runCollect(applyPerElementPipeline(rawDeadCodeStream));
+      const deadCodeFailureStateInline = yield* Ref.get(deadCodeFailure);
+      if (deadCodeFailureStateInline.didFail) {
+        yield* deadCodeProgress.fail(DEAD_CODE_FAIL_TEXT);
+      } else {
+        yield* deadCodeProgress.succeed(DEAD_CODE_SUCCESS_TEXT);
+      }
+    }
+    const deadCodeFailureState = yield* Ref.get(deadCodeFailure);
+
+    yield* reporterService.finalize;
+
+    const finalDiagnostics: ReadonlyArray<Diagnostic> = [
+      ...envCollected,
+      ...lintCollected,
+      ...deadCodeCollected,
+    ];
+
     // Score is computed off the surface-filtered diagnostic set so
     // weak-signal rule families (design cleanup, etc.) can't dilute
     // the headline number. The full `finalDiagnostics` array is what
@@ -357,8 +401,10 @@ export const runInspect = <HooksR = never>(
 /**
  * Default layer stack for the production CLI / programmatic API:
  * real Node-side services for Project / Config / Files / Git / Linter /
- * DeadCode; HTTP for Score; the silent Reporter (the orchestrator
- * already returns the diagnostic array via `Stream.runCollect`).
+ * DeadCode; HTTP for Score; noop Progress (the CLI overrides with
+ * `Progress.layerOra(...)` for terminal feedback); the silent Reporter
+ * (the orchestrator already returns the diagnostic array via
+ * `Stream.runCollect`).
  *
  * Callers tweak by replacing individual layers: `--no-score` swaps
  * `Score.layerHttp` for `Score.layerOf(null)`; `--no-lint` swaps
@@ -375,6 +421,7 @@ export const layerInspectLive = Layer.mergeAll(
   Git.layerNode,
   Linter.layerOxlint,
   LintPartialFailures.layerLive,
+  Progress.layerNoop,
   Reporter.layerNoop,
   Score.layerHttp,
 );

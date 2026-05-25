@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import {
   Config,
@@ -6,11 +7,13 @@ import {
   Git,
   Linter,
   LintPartialFailures,
+  Progress,
   Project,
   Reporter,
   Score,
 } from "@react-doctor/core";
-import type { ReactDoctorConfig } from "@react-doctor/core";
+import type { ProgressHandle, ReactDoctorConfig } from "@react-doctor/core";
+import { spinner } from "./spinner.js";
 
 export interface BuildRuntimeLayersInput {
   readonly directory: string;
@@ -31,7 +34,28 @@ export interface BuildRuntimeLayersInput {
    * orchestrator's Score service is a no-op for `--no-score` runs.
    */
   readonly shouldComputeScore: boolean;
+  /**
+   * Whether the lint + dead-code spinners should render on stderr.
+   * Set `false` for `--score-only`, `--silent`, or runs that skip
+   * lint entirely — the orchestrator's `Progress` lifecycle becomes
+   * a noop instead of emitting frames into a quiet stream.
+   */
+  readonly shouldShowProgressSpinners: boolean;
 }
+
+/**
+ * Adapts the CLI's existing `spinner()` helper (an ora wrapper that
+ * already handles non-interactive demotion + `setSpinnerSilent`) into
+ * a `ProgressHandle` factory the orchestrator can drive via the
+ * `Progress` service.
+ */
+const buildSpinnerProgressHandle = (text: string): ProgressHandle => {
+  const oraHandle = spinner(text).start();
+  return {
+    succeed: (displayText: string) => Effect.sync(() => oraHandle.succeed(displayText)),
+    fail: (displayText: string) => Effect.sync(() => oraHandle.fail(displayText)),
+  };
+};
 
 /**
  * Composes the production layer stack for `inspect()`'s
@@ -41,7 +65,7 @@ export interface BuildRuntimeLayersInput {
  * concern with its own contract.
  *
  * Same shape as `core/src/run-inspect.ts → layerInspectLive`
- * (the default for `@react-doctor/api → diagnose()`) with two
+ * (the default for `@react-doctor/api → diagnose()`) with the
  * differences specific to the CLI path:
  *
  * - **Config**: when the caller passes `configOverride`, the
@@ -54,11 +78,17 @@ export interface BuildRuntimeLayersInput {
  *   `"score"` surface filter to the diagnostic set before calling
  *   `Score.compute`, so the in-band score matches what the public-API
  *   contract documents.
+ * - **Progress**: `layerOra` wired to the CLI's existing ora-backed
+ *   spinner helper for terminal feedback; `layerNoop` for silent /
+ *   score-only / lint-skipped runs.
  */
 export const buildRuntimeLayers = (input: BuildRuntimeLayersInput) => {
   const linterLayer = input.shouldSkipLint ? Linter.layerOf([]) : Linter.layerOxlint;
   const deadCodeLayer = input.shouldRunDeadCode ? DeadCode.layerNode : DeadCode.layerOf([]);
   const scoreLayer = input.shouldComputeScore ? Score.layerHttp : Score.layerOf(null);
+  const progressLayer = input.shouldShowProgressSpinners
+    ? Progress.layerOra(buildSpinnerProgressHandle)
+    : Progress.layerNoop;
   const configLayer = input.hasConfigOverride
     ? Config.layerOf({
         config: input.userConfig,
@@ -80,6 +110,7 @@ export const buildRuntimeLayers = (input: BuildRuntimeLayersInput) => {
     linterLayer,
     LintPartialFailures.layerLive,
     deadCodeLayer,
+    progressLayer,
     Reporter.layerNoop,
     scoreLayer,
   );

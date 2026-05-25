@@ -18,6 +18,7 @@ import { DeadCode } from "../src/services/dead-code.js";
 import { Files } from "../src/services/files.js";
 import { Git } from "../src/services/git.js";
 import { LintPartialFailures, Linter } from "../src/services/linter.js";
+import { Progress } from "../src/services/progress.js";
 import { Project } from "../src/services/project.js";
 import { Reporter, ReporterCapture } from "../src/services/reporter.js";
 import { Score } from "../src/services/score.js";
@@ -90,6 +91,7 @@ const layersOf = (config: {
       githubViewerPermission: config.githubViewerPermission,
     }),
     Score.layerOf({ score: 85, label: "Good" }),
+    Progress.layerNoop,
     Reporter.layerCapture,
   );
 
@@ -189,6 +191,7 @@ describe("runInspect — happy path", () => {
       DeadCode.layerOf([]),
       failingGit,
       Score.layerOf({ score: 85, label: "Good" }),
+      Progress.layerNoop,
       Reporter.layerCapture,
     );
 
@@ -219,6 +222,7 @@ describe("runInspect — missing React dependency", () => {
       DeadCode.layerOf([]),
       Git.layerOf({}),
       Score.layerOf(null),
+      Progress.layerNoop,
       Reporter.layerNoop,
     );
 
@@ -240,6 +244,7 @@ describe("runInspect — missing React dependency", () => {
       DeadCode.layerOf([]),
       Git.layerOf({}),
       Score.layerOf(null),
+      Progress.layerNoop,
       Reporter.layerNoop,
     );
     void layers;
@@ -279,6 +284,7 @@ describe("runInspect — mid-stream lint failure", () => {
       DeadCode.layerOf([deadCodeDiagnostic]),
       Git.layerOf({}),
       Score.layerOf({ score: 50, label: "Needs Improvement" }),
+      Progress.layerNoop,
       Reporter.layerNoop,
     );
     const output = await Effect.runPromise(runInspect(baseInput).pipe(Effect.provide(layers)));
@@ -311,6 +317,7 @@ describe("runInspect — dead-code failure", () => {
       failingDeadCode,
       Git.layerOf({}),
       Score.layerOf(null),
+      Progress.layerNoop,
       Reporter.layerNoop,
     );
     const output = await Effect.runPromise(runInspect(baseInput).pipe(Effect.provide(layers)));
@@ -387,6 +394,7 @@ describe("runInspect — Reporter sees post-filter diagnostics", () => {
       DeadCode.layerOf([]),
       Git.layerOf({}),
       Score.layerOf(null),
+      Progress.layerNoop,
       Reporter.layerCapture,
     );
     const result = await Effect.runPromise(

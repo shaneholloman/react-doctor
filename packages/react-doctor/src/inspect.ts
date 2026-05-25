@@ -1,7 +1,6 @@
 import { performance } from "node:perf_hooks";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import * as Ref from "effect/Ref";
 import {
   filterDiagnosticsForSurface,
   highlighter,
@@ -32,7 +31,7 @@ import {
 } from "./cli/utils/render-score-header.js";
 import { printSummary } from "./cli/utils/render-summary.js";
 import { resolveOxlintNode } from "./cli/utils/resolve-oxlint-node.js";
-import { isSpinnerSilent, setSpinnerSilent, spinner } from "./cli/utils/spinner.js";
+import { isSpinnerSilent, setSpinnerSilent } from "./cli/utils/spinner.js";
 import { VERSION } from "./cli/utils/version.js";
 
 // HACK: console object whose methods are no-ops. Provided via
@@ -158,11 +157,6 @@ export const inspect = async (
   }
 };
 
-interface SpinnerHandle {
-  succeed: (text: string) => void;
-  fail: (text: string) => void;
-}
-
 const runInspectWithRuntime = async (
   directory: string,
   options: ResolvedInspectOptions,
@@ -185,6 +179,12 @@ const runInspectWithRuntime = async (
     options.scoreOnly || options.silent,
   );
   const lintBindingMissing = options.lint && !resolvedNodeBinaryPath;
+  // Suppress the orchestrator-owned lint + dead-code spinners when
+  // the CLI is in score-only / silent mode (or when lint is
+  // skipped entirely). `Progress.layerNoop` makes the lifecycle a
+  // no-op; the rest of the pipeline is unchanged.
+  const shouldShowProgressSpinners =
+    !options.silent && !options.scoreOnly && options.lint && Boolean(resolvedNodeBinaryPath);
 
   const layers = buildRuntimeLayers({
     directory,
@@ -194,57 +194,38 @@ const runInspectWithRuntime = async (
     shouldSkipLint: !options.lint || lintBindingMissing,
     shouldRunDeadCode: options.deadCode,
     shouldComputeScore: !options.noScore,
+    shouldShowProgressSpinners,
   });
 
-  const program = Effect.gen(function* () {
-    const spinnerRef = yield* Ref.make<SpinnerHandle | null>(null);
-
-    const output = yield* runInspectEffect(
-      {
-        directory,
-        includePaths: options.includePaths,
-        customRulesOnly: options.customRulesOnly,
-        respectInlineDisables: options.respectInlineDisables,
-        adoptExistingLintConfig: options.adoptExistingLintConfig,
-        ignoredTags: options.ignoredTags,
-        nodeBinaryPath: resolvedNodeBinaryPath ?? undefined,
-        runDeadCode: options.deadCode,
-        isCi: options.isCi,
-        doctorVersion: VERSION,
-        resolveLocalGithubViewerPermission: !options.noScore,
-      },
-      {
-        beforeLint: (projectInfo, lintIncludePaths) =>
-          Effect.gen(function* () {
-            const lintSourceFileCount = lintIncludePaths?.length ?? projectInfo.sourceFileCount;
-            if (!options.scoreOnly) {
-              yield* printProjectDetection({
-                projectInfo,
-                userConfig,
-                isDiffMode,
-                includePaths: options.includePaths,
-                lintSourceFileCount,
-              });
-            }
-            if (options.lint && resolvedNodeBinaryPath && !options.scoreOnly && !options.silent) {
-              const handle = spinner("Running lint checks...").start();
-              yield* Ref.set(spinnerRef, {
-                succeed: (text) => handle.succeed(text),
-                fail: (text) => handle.fail(text),
-              });
-            }
-          }),
-        afterLint: (didFail) =>
-          Effect.gen(function* () {
-            const handle = yield* Ref.get(spinnerRef);
-            if (handle && !didFail) handle.succeed("Running lint checks.");
-          }),
-      },
-    );
-
-    const finalHandle = yield* Ref.get(spinnerRef);
-    return { output, finalHandle };
-  });
+  const program = runInspectEffect(
+    {
+      directory,
+      includePaths: options.includePaths,
+      customRulesOnly: options.customRulesOnly,
+      respectInlineDisables: options.respectInlineDisables,
+      adoptExistingLintConfig: options.adoptExistingLintConfig,
+      ignoredTags: options.ignoredTags,
+      nodeBinaryPath: resolvedNodeBinaryPath ?? undefined,
+      runDeadCode: options.deadCode,
+      isCi: options.isCi,
+      doctorVersion: VERSION,
+      resolveLocalGithubViewerPermission: !options.noScore,
+    },
+    {
+      beforeLint: (projectInfo, lintIncludePaths) =>
+        Effect.gen(function* () {
+          if (options.scoreOnly) return;
+          const lintSourceFileCount = lintIncludePaths?.length ?? projectInfo.sourceFileCount;
+          yield* printProjectDetection({
+            projectInfo,
+            userConfig,
+            isDiffMode,
+            includePaths: options.includePaths,
+            lintSourceFileCount,
+          });
+        }),
+    },
+  );
 
   // HACK: silent mode swaps the global Console for one whose
   // log / error / warn / info / debug methods are no-ops, so
@@ -264,9 +245,7 @@ const runInspectWithRuntime = async (
         Effect.provide(layerOtlp),
       )
     : program.pipe(Effect.provide(layers), Effect.provide(layerOtlp));
-  const { output, finalHandle: finalSpinnerHandle } = await Effect.runPromise(
-    restoreLegacyThrow(programWithLayers),
-  );
+  const output = await Effect.runPromise(restoreLegacyThrow(programWithLayers));
 
   const didLintFail = lintBindingMissing || output.didLintFail;
   const lintFailureReason = lintBindingMissing
@@ -280,17 +259,16 @@ const runInspectWithRuntime = async (
   const isNativeBindingFailure =
     lintFailureReasonTag === "OxlintUnavailable" || lintFailureReasonTag === "OxlintSpawnFailed";
 
+  // The orchestrator already finalized the lint spinner via the
+  // Progress service. Print only the supplementary CLI-side hint
+  // (upgrade-Node guidance / failure reason) post-orchestrator.
   if (
     !options.scoreOnly &&
     !lintBindingMissing &&
     output.didLintFail &&
-    finalSpinnerHandle !== null &&
     lintFailureReason !== null
   ) {
     if (isNativeBindingFailure && /native binding/.test(lintFailureReason)) {
-      finalSpinnerHandle.fail(
-        `Lint checks failed — oxlint native binding not found (Node ${process.version}).`,
-      );
       runConsole(
         Console.log(
           highlighter.gray(
@@ -299,24 +277,7 @@ const runInspectWithRuntime = async (
         ),
       );
     } else {
-      finalSpinnerHandle.fail("Lint checks failed (non-fatal, skipping).");
       runConsole(Console.error(highlighter.error(lintFailureReason)));
-    }
-  }
-
-  // Dead-code analysis runs inside the runtime stream; surface its
-  // outcome to the user as a separate spinner line. Dead-code is
-  // sequential after lint in the current pipeline, so showing this
-  // only after lint finalizes keeps two ora frame loops from
-  // competing for stderr.
-  const shouldRenderDeadCodeLine =
-    !options.scoreOnly && !options.silent && options.deadCode && !isDiffMode;
-  if (shouldRenderDeadCodeLine) {
-    const deadCodeSpinner = spinner("Analyzing dead code...").start();
-    if (output.didDeadCodeFail) {
-      deadCodeSpinner.fail("Dead-code analysis failed (non-fatal, skipping).");
-    } else {
-      deadCodeSpinner.succeed("Analyzing dead code.");
     }
   }
 

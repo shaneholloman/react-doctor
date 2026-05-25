@@ -8,6 +8,7 @@ import {
   layerOtlp,
   Linter,
   LintPartialFailures,
+  Progress,
   Project,
   Reporter,
   resolveScanTarget,
@@ -27,6 +28,7 @@ const buildLayerStack = () =>
     Linter.layerOxlint,
     LintPartialFailures.layerLive,
     DeadCode.layerNode,
+    Progress.layerNoop,
     Score.layerHttp,
     Reporter.layerNoop,
   );
