@@ -1,7 +1,7 @@
-import fs from "node:fs";
 import path from "node:path";
 import { ADOPTABLE_LINT_CONFIG_FILENAMES } from "./constants.js";
-import { isFile, isMonorepoRoot } from "./project-info/index.js";
+import { isFile } from "./project-info/index.js";
+import { isProjectBoundary } from "./utils/is-project-boundary.js";
 
 const findFirstLintConfigInDirectory = (directory: string): string | null => {
   for (const filename of ADOPTABLE_LINT_CONFIG_FILENAMES) {
@@ -16,9 +16,6 @@ const findFirstLintConfigInDirectory = (directory: string): string | null => {
 // adopt a `.oxlintrc.json` from any random ancestor on disk
 // (e.g. the user's home directory) — same boundary semantics as
 // `loadConfig` for `react-doctor.config.json`.
-const isProjectBoundary = (directory: string): boolean =>
-  fs.existsSync(path.join(directory, ".git")) || isMonorepoRoot(directory);
-
 export const detectUserLintConfigPaths = (rootDirectory: string): string[] => {
   const directLintConfig = findFirstLintConfigInDirectory(rootDirectory);
   if (directLintConfig) return [directLintConfig];

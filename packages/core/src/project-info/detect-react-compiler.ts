@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { PackageJson } from "../types/index.js";
 import { isFile } from "./utils/is-file.js";
-import { isMonorepoRoot } from "./find-monorepo-root.js";
+import { isProjectBoundary } from "../utils/is-project-boundary.js";
 import { readPackageJson } from "./read-package-json.js";
 
 const REACT_COMPILER_PACKAGES = new Set([
@@ -67,10 +67,6 @@ const hasCompilerInConfigFile = (filePath: string): boolean => {
 const hasCompilerInConfigFiles = (directory: string, filenames: string[]): boolean =>
   filenames.some((filename) => hasCompilerInConfigFile(path.join(directory, filename)));
 
-const isProjectBoundary = (directory: string): boolean => {
-  if (fs.existsSync(path.join(directory, ".git"))) return true;
-  return isMonorepoRoot(directory);
-};
 
 export const detectReactCompiler = (directory: string, packageJson: PackageJson): boolean => {
   if (hasCompilerPackage(packageJson)) return true;

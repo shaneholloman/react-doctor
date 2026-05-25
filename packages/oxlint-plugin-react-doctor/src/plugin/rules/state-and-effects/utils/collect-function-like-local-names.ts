@@ -4,7 +4,7 @@ import {
   getStaticMemberPropertyName,
   getStaticMemberReferenceName,
   getStaticPropertyKeyName,
-  isFunctionLike,
+  isInlineFunctionExpression,
 } from "./event-handler-reference.js";
 import {
   addPatternBindings,
@@ -29,7 +29,7 @@ const isFunctionLikeReference = (
   functionLikeLocalNames: Set<string>,
   scope: BindingScope,
 ): boolean => {
-  if (isFunctionLike(node) || isUseCallbackCall(node)) return true;
+  if (isInlineFunctionExpression(node) || isUseCallbackCall(node)) return true;
   if (isNodeOfType(node, "Identifier"))
     return functionLikeLocalNames.has(resolveBindingName(scope, node.name));
   const memberReferenceName = getStaticMemberReferenceName(node, (name) =>

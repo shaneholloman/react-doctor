@@ -3,7 +3,8 @@ import * as Effect from "effect/Effect";
 import fs from "node:fs";
 import path from "node:path";
 import type { ReactDoctorConfig } from "./types/index.js";
-import { isFile, isMonorepoRoot, isPlainObject } from "./project-info/index.js";
+import { isFile, isPlainObject } from "./project-info/index.js";
+import { isProjectBoundary } from "./utils/is-project-boundary.js";
 import { validateConfigTypes } from "./validate-config-types.js";
 
 const warn = (message: string): void => {
@@ -70,9 +71,6 @@ const loadConfigFromDirectory = (directory: string): LoadedReactDoctorConfig | n
 // HACK: `.git` exists either as a directory (regular repo) or a file
 // (git worktree pointing back to the main .git dir). `fs.existsSync`
 // covers both — no need for a separate `isFile` check.
-const isProjectBoundary = (directory: string): boolean =>
-  fs.existsSync(path.join(directory, ".git")) || isMonorepoRoot(directory);
-
 const cachedConfigs = new Map<string, LoadedReactDoctorConfig | null>();
 
 // HACK: expose a way to clear the module-level config cache so programmatic

@@ -1,7 +1,14 @@
 import type { EsTreeNode } from "../../../utils/es-tree-node.js";
 import { isNodeOfType } from "../../../utils/is-node-of-type.js";
 
-export const isFunctionLike = (node: EsTreeNode): boolean =>
+// Recognises an inline function expression as the value of a JSX
+// prop or callback argument — `onClick={() => ...}` or
+// `onClick={function() {}}`. Differs from `utils/is-function-like.ts`
+// (the canonical helper) which also matches `FunctionDeclaration`;
+// declarations never appear as expression values, so omitting them
+// here is intentional. Renamed away from `isFunctionLike` to avoid
+// confusion with the canonical helper.
+export const isInlineFunctionExpression = (node: EsTreeNode): boolean =>
   isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression");
 
 export const isEventHandlerName = (name: string): boolean => /^on[A-Z]/.test(name);
@@ -36,7 +43,7 @@ export const isEventHandlerValue = (
   eventHandlerReferenceNames: Set<string>,
   resolveName: (name: string) => string = (name) => name,
 ): boolean => {
-  if (isFunctionLike(node)) return true;
+  if (isInlineFunctionExpression(node)) return true;
   if (isNodeOfType(node, "Identifier"))
     return eventHandlerReferenceNames.has(resolveName(node.name));
   const memberReferenceName = getStaticMemberReferenceName(node, resolveName);
