@@ -2,7 +2,18 @@ import path from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import type { Diagnostic } from "@react-doctor/core";
 
-const FIXTURES_DIRECTORY = path.resolve(import.meta.dirname, "..", "fixtures");
+// Fixtures live in `packages/core/tests/fixtures/` (canonical home for
+// project-shape fixtures — see AGENTS.md: core owns project-discovery
+// and run-inspect tests). CLI / regression tests cross-reference them.
+const FIXTURES_DIRECTORY = path.resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "core",
+  "tests",
+  "fixtures",
+);
 export const BASIC_REACT_DIRECTORY = path.join(FIXTURES_DIRECTORY, "basic-react");
 export const NEXTJS_APP_DIRECTORY = path.join(FIXTURES_DIRECTORY, "nextjs-app");
 export const TANSTACK_START_APP_DIRECTORY = path.join(FIXTURES_DIRECTORY, "tanstack-start-app");

@@ -9,7 +9,26 @@ import {
   createNodeReadFileLinesSync,
   mergeAndFilterDiagnostics,
 } from "@react-doctor/core";
-import { buildDiagnostic, writeFile } from "./regressions/_helpers.js";
+
+// Inlined to avoid coupling core tests to the react-doctor regressions
+// test harness (which carries its own runOxlint + git-spawn surface).
+const writeFile = (filePath: string, contents: string): void => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, contents);
+};
+
+const buildDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic => ({
+  filePath: "src/app.tsx",
+  plugin: "react-doctor",
+  rule: "test-rule",
+  severity: "warning",
+  message: "x",
+  help: "",
+  line: 1,
+  column: 1,
+  category: "Test",
+  ...overrides,
+});
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rd-merge-and-filter-"));
 

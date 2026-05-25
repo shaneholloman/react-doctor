@@ -18,7 +18,14 @@ vi.mock("ora", () => ({
   }),
 }));
 
-const FIXTURES_DIRECTORY = path.resolve(import.meta.dirname, "fixtures");
+const FIXTURES_DIRECTORY = path.resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "core",
+  "tests",
+  "fixtures",
+);
 
 interface CapturedFetchCall {
   url: string;

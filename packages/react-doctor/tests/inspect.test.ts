@@ -6,7 +6,14 @@ import { inspect } from "../src/inspect.js";
 import { clearConfigCache } from "@react-doctor/core";
 import { setupReactProject } from "./regressions/_helpers.js";
 
-const FIXTURES_DIRECTORY = path.resolve(import.meta.dirname, "fixtures");
+const FIXTURES_DIRECTORY = path.resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "core",
+  "tests",
+  "fixtures",
+);
 
 vi.mock("ora", () => ({
   default: () => ({

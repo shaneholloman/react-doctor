@@ -43,7 +43,15 @@ afterAll(() => {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 });
 
-const FIXTURES_DIRECTORY = path.resolve(import.meta.dirname, "..", "fixtures");
+const FIXTURES_DIRECTORY = path.resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "core",
+  "tests",
+  "fixtures",
+);
 const MIXED_MONOREPO_FIXTURE = path.join(FIXTURES_DIRECTORY, "mixed-rn-web-monorepo");
 
 const findRnDiagnostics = (diagnostics: Diagnostic[]): Diagnostic[] =>

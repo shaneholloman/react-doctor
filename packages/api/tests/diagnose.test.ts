@@ -8,7 +8,7 @@ const FIXTURES_DIRECTORY = path.resolve(
   import.meta.dirname,
   "..",
   "..",
-  "react-doctor",
+  "core",
   "tests",
   "fixtures",
 );
