@@ -2,12 +2,8 @@ import { TANSTACK_SERVER_FN_NAMES } from "../constants/tanstack.js";
 import type { EsTreeNode } from "./es-tree-node.js";
 import { getCalleeName } from "./get-callee-name.js";
 import { hasUseServerDirective } from "./has-use-server-directive.js";
+import { isFunctionLike } from "./is-function-like.js";
 import { isNodeOfType } from "./is-node-of-type.js";
-
-const isFunctionNode = (node: EsTreeNode): boolean =>
-  isNodeOfType(node, "ArrowFunctionExpression") ||
-  isNodeOfType(node, "FunctionDeclaration") ||
-  isNodeOfType(node, "FunctionExpression");
 
 const isTanStackServerFnHandlerCall = (node: EsTreeNode): boolean => {
   if (!isNodeOfType(node, "CallExpression")) return false;
@@ -36,7 +32,7 @@ const isTanStackServerFnHandler = (node: EsTreeNode): boolean => {
 export const isInsideServerOnlyScope = (node: EsTreeNode): boolean => {
   let currentNode = node.parent ?? null;
   while (currentNode) {
-    if (isFunctionNode(currentNode)) {
+    if (isFunctionLike(currentNode)) {
       if (hasUseServerDirective(currentNode) || isTanStackServerFnHandler(currentNode)) {
         return true;
       }
