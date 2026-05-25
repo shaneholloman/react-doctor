@@ -400,6 +400,10 @@ const TRANSPARENT_WRAPPER_TYPES: ReadonlySet<string> = new Set([
   "ChainExpression",
 ]);
 
+// Locally-scoped because `TRANSPARENT_WRAPPER_TYPES.has` is also read
+// directly by the member-chain walker below; reusing the shared
+// `stripParenExpression` util would split the same intent across two
+// modules. Same six wrapper types either way.
 const unwrapExpression = (node: EsTreeNode): EsTreeNode => {
   let current = node;
   while (TRANSPARENT_WRAPPER_TYPES.has(current.type)) {
