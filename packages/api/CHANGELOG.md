@@ -1,11 +1,18 @@
 # @react-doctor/api
 
+## 0.2.10
+
+### Patch Changes
+
+- Inherit core scan fixes for Preact project detection, React 19.2 capability gating, and dead-code analysis reliability, so programmatic `diagnose()` callers get the same behavior as the CLI.
+
+- Dependency bump: `@react-doctor/core@0.2.10`.
+
 ## 0.2.9
 
 ### Patch Changes
 
-- Updated dependencies []:
-  - @react-doctor/core@0.2.9
+- Dependency bump: `@react-doctor/core@0.2.9`.
 
 ## 0.2.8
 
