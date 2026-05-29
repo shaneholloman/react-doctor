@@ -23,6 +23,7 @@ import {
   type ReactDoctorErrorReason,
 } from "./errors.js";
 import { filterDiagnosticsForSurface } from "./filter-for-surface.js";
+import { isAnalyzableProject } from "./project-info/index.js";
 import { resolveLintIncludePaths } from "./resolve-lint-include-paths.js";
 import { Config, type ResolvedConfig } from "./services/config.js";
 import { DeadCode } from "./services/dead-code.js";
@@ -203,7 +204,7 @@ export const runInspect = <HooksR = never>(
     const scanDirectory = resolvedConfig.resolvedDirectory;
 
     const project = yield* projectService.discover(scanDirectory);
-    if (project.reactVersion === null) {
+    if (!isAnalyzableProject(project)) {
       return yield* new ReactDoctorError({
         reason: new NoReactDependency({ directory: scanDirectory }),
       });
@@ -290,7 +291,7 @@ export const runInspect = <HooksR = never>(
         onFileProgress: (scannedFileCount, totalFileCount) => {
           lastReportedTotalFileCount = totalFileCount;
           Effect.runSync(
-            scanProgress.update(`Scanning (${scannedFileCount}/${totalFileCount})...`),
+            scanProgress.update(`Scanning files (${scannedFileCount}/${totalFileCount})...`),
           );
         },
       })

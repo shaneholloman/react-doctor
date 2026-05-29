@@ -1,5 +1,10 @@
 import type { ProjectInfo } from "../../types/index.js";
-import { EARLIEST_GATED_REACT_MAJOR, LATEST_KNOWN_REACT_MAJOR } from "../../constants.js";
+import {
+  EARLIEST_GATED_PREACT_MAJOR,
+  EARLIEST_GATED_REACT_MAJOR,
+  LATEST_KNOWN_PREACT_MAJOR,
+  LATEST_KNOWN_REACT_MAJOR,
+} from "../../constants.js";
 import {
   isReactAtLeast,
   isTailwindAtLeast,
@@ -64,12 +69,22 @@ export const buildCapabilities = (project: ProjectInfo): ReadonlySet<string> => 
   if (project.hasReactCompiler) capabilities.add("react-compiler");
   if (project.hasTanStackQuery) capabilities.add("tanstack-query");
   if (project.hasTypeScript) capabilities.add("typescript");
-  // Keyed off `hasPreact`, not `framework === "preact"`, so the
+  // Keyed off `preactVersion`, not `framework === "preact"`, so the
   // dominant Preact-on-Vite setup (which classifies as `vite` for
   // build-tool reasons) still gets the `preact` capability and its
   // matching rule bucket.
-  if (project.hasPreact) {
+  if (project.preactVersion !== null) {
     capabilities.add("preact");
+    // Mirror the React major ladder: a Preact 11 project satisfies rules
+    // requiring `preact:10` or `preact:11`. Same clamp rationale as React —
+    // `preactMajorVersion` comes from an arbitrary package.json spec.
+    const preactMajor = project.preactMajorVersion;
+    if (preactMajor !== null) {
+      const cappedPreactMajor = Math.min(preactMajor, LATEST_KNOWN_PREACT_MAJOR);
+      for (let major = EARLIEST_GATED_PREACT_MAJOR; major <= cappedPreactMajor; major++) {
+        capabilities.add(`preact:${major}`);
+      }
+    }
     // `pure-preact` is the strict-mode signal: Preact is in the
     // dependency graph AND no `react` package is present, so the
     // project cannot be running through `preact/compat` aliasing.
