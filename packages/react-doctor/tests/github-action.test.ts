@@ -109,4 +109,20 @@ describe("GitHub Action contract", () => {
     expect(commentStep).toContain("github.rest.issues.createComment");
     expect(commentStep).toContain("core.warning");
   });
+
+  it("non-blocking input makes the fail gate always exit 0", () => {
+    const actionYaml = readActionYaml();
+    const inputsBlock = extractBlock(actionYaml, "inputs:", "\noutputs:");
+    const nonBlockingInput = extractBlock(actionYaml, "  non-blocking:", "  comment:");
+    const failStep = normalizeWhitespace(
+      extractStep(actionYaml, "- name: Fail if React Doctor found blocking issues"),
+    );
+
+    expect(inputsBlock).toContain("  non-blocking:");
+    expect(normalizeWhitespace(nonBlockingInput)).toContain('default: "false"');
+    expect(failStep).toContain("INPUT_NON_BLOCKING: ${{ inputs.non-blocking }}");
+    expect(failStep).toContain('if [ "$INPUT_NON_BLOCKING" = "true" ]; then');
+    expect(failStep).toContain("exit 0");
+    expect(failStep).toContain('exit "$SCAN_STATUS"');
+  });
 });

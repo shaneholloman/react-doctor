@@ -14,6 +14,9 @@ inputs:
   fail-on:
     description: "Exit non-zero when diagnostics fire (error, warning, none)."
     default: "error"
+  non-blocking:
+    description: "Advisory mode. Report findings but always exit 0 so neither the fail-on gate nor a scan error fails the workflow."
+    default: "false"
   comment:
     description: "Create or update a sticky pull request summary comment."
     default: "true"
@@ -169,8 +172,13 @@ runs:
       shell: bash
       env:
         SCAN_STATUS: ${{ steps.scan.outputs.exit-code }}
+        INPUT_NON_BLOCKING: ${{ inputs.non-blocking }}
       run: |
-        if [ -z "$SCAN_STATUS" ]; then
-          exit 1
+        SCAN_STATUS="${SCAN_STATUS:-1}"
+        if [ "$INPUT_NON_BLOCKING" = "true" ]; then
+          if [ "$SCAN_STATUS" != "0" ]; then
+            echo "::notice title=React Doctor::Scan exited ${SCAN_STATUS}; non-blocking is enabled, so the job will not fail."
+          fi
+          exit 0
         fi
         exit "$SCAN_STATUS"
