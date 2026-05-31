@@ -3,7 +3,10 @@ import path from "node:path";
 import { loadConfigWithSource } from "./load-config.js";
 import { isDirectory, NotADirectoryError, ProjectNotFoundError } from "./project-info/index.js";
 import { resolveConfigRootDir } from "./resolve-config-root-dir.js";
-import { resolveDiagnoseTarget } from "./resolve-diagnose-target.js";
+import {
+  resolveDiagnoseTarget,
+  type ResolveDiagnoseTargetOptions,
+} from "./resolve-diagnose-target.js";
 import type { ReactDoctorConfig } from "./types/index.js";
 
 export interface ResolvedScanTarget {
@@ -38,7 +41,8 @@ export interface ResolvedScanTarget {
  *      project root, if configured.
  *   4. Walk into a nested React subproject when the requested
  *      directory has no `package.json` of its own (raises
- *      `AmbiguousProjectError` when multiple candidates exist).
+ *      `AmbiguousProjectError` when multiple candidates exist unless
+ *      the caller opts into keeping the wrapper directory).
  *
  * Throws `ProjectNotFoundError` when neither the requested directory
  * nor any discoverable nested project has a `package.json`.
@@ -50,18 +54,18 @@ export interface ResolvedScanTarget {
  * via its own cache). Routing through `resolveScanTarget` keeps every
  * shell in agreement on what "the scan directory" means.
  */
-export const resolveScanTarget = (requestedDirectory: string): ResolvedScanTarget => {
+export const resolveScanTarget = (
+  requestedDirectory: string,
+  options: ResolveDiagnoseTargetOptions = {},
+): ResolvedScanTarget => {
   const absoluteRequested = path.resolve(requestedDirectory);
   const loadedConfig = loadConfigWithSource(absoluteRequested);
   const userConfig = loadedConfig?.config ?? null;
   const configSourceDirectory = loadedConfig?.sourceDirectory ?? null;
   const redirectedDirectory = resolveConfigRootDir(userConfig, configSourceDirectory);
   const directoryAfterRedirect = redirectedDirectory ?? absoluteRequested;
-  // `resolveDiagnoseTarget` throws `AmbiguousProjectError` when the
-  // requested directory has multiple React subprojects; let it
-  // propagate to the caller.
-  const resolved = resolveDiagnoseTarget(directoryAfterRedirect);
-  const resolvedDirectory = resolved ?? directoryAfterRedirect;
+  const resolvedDirectory =
+    resolveDiagnoseTarget(directoryAfterRedirect, options) ?? directoryAfterRedirect;
 
   if (!isDirectory(resolvedDirectory)) {
     throw existsSync(resolvedDirectory)

@@ -3,6 +3,7 @@ import type { WorkspacePackage } from "@react-doctor/core";
 import {
   discoverReactSubprojects,
   highlighter,
+  isFile,
   isMonorepoRoot,
   listWorkspacePackages,
 } from "@react-doctor/core";
@@ -14,9 +15,9 @@ export const selectProjects = async (
   projectFlag: string | undefined,
   skipPrompts: boolean,
 ): Promise<string[]> => {
+  const hasRootPackageJson = isFile(path.join(rootDirectory, "package.json"));
   let packages = listWorkspacePackages(rootDirectory);
-  if (packages.length === 0) {
-    if (!isMonorepoRoot(rootDirectory)) return [rootDirectory];
+  if (packages.length === 0 && (!hasRootPackageJson || isMonorepoRoot(rootDirectory))) {
     packages = discoverReactSubprojects(rootDirectory);
   }
 
