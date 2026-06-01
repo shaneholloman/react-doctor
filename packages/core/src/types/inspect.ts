@@ -69,6 +69,15 @@ export interface InspectOptions {
   configOverride?: ReactDoctorConfig | null;
   respectInlineDisables?: boolean;
   /**
+   * Number of oxlint subprocesses to run in parallel during the lint
+   * pass. Overrides the `OxlintConcurrency` Reference (env-seeded) for
+   * this run. `undefined` leaves the ambient default in place (serial
+   * unless `REACT_DOCTOR_PARALLEL` is set); the CLI's `--experimental-parallel` flag
+   * resolves to a concrete worker count here. Out-of-range values are
+   * clamped to the supported worker range at the spawn boundary.
+   */
+  concurrency?: number;
+  /**
    * Per-call override for `ReactDoctorConfig.warnings`. When omitted,
    * `config.warnings` wins (defaulting to `false`), so `"warning"`-
    * severity diagnostics stay hidden on every surface — CLI, PR comment,

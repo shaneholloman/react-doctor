@@ -28,6 +28,7 @@ import {
 } from "./errors.js";
 import { filterDiagnosticsForSurface } from "./filter-for-surface.js";
 import { isAnalyzableProject } from "./project-info/index.js";
+import { OxlintConcurrency } from "./refs.js";
 import { resolveLintIncludePaths } from "./resolve-lint-include-paths.js";
 import { Config, type ResolvedConfig } from "./services/config.js";
 import { DeadCode } from "./services/dead-code.js";
@@ -329,6 +330,11 @@ export const runInspect = <HooksR = never>(
       reason: null,
     });
 
+    // Read only for the spinner suffix below (the Linter reads the same
+    // Reference to actually fan out the lint pass); default 1 = serial.
+    const scanConcurrency = yield* OxlintConcurrency;
+    const workerCountSuffix = scanConcurrency > 1 ? ` · ${scanConcurrency} workers` : "";
+
     const scanProgress = yield* progressService.start("Scanning...");
     const scanStartTime = Date.now();
     let lastReportedTotalFileCount = 0;
@@ -348,7 +354,9 @@ export const runInspect = <HooksR = never>(
         onFileProgress: (scannedFileCount, totalFileCount) => {
           lastReportedTotalFileCount = totalFileCount;
           Effect.runSync(
-            scanProgress.update(`Scanning files (${scannedFileCount}/${totalFileCount})...`),
+            scanProgress.update(
+              `Scanning files (${scannedFileCount}/${totalFileCount})${workerCountSuffix}...`,
+            ),
           );
         },
       })
@@ -428,7 +436,7 @@ export const runInspect = <HooksR = never>(
         yield* scanProgress.stop();
       } else {
         yield* scanProgress.succeed(
-          `Scanned ${totalFileCount} ${totalFileCount === 1 ? "file" : "files"} in ${scanElapsedSeconds}s`,
+          `Scanned ${totalFileCount} ${totalFileCount === 1 ? "file" : "files"} in ${scanElapsedSeconds}s${workerCountSuffix}`,
         );
       }
     }
