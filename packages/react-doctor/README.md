@@ -41,7 +41,7 @@ Works with Claude Code, Cursor, Codex, OpenCode, and many more.
 
 React Doctor CI (GitHub Actions) reviews every pull request automatically and reports only the issues your change introduced, not your existing backlog.
 
-[Add GitHub Action →](https://react.doctor/ci)
+[Add GitHub Action →](https://react.doctor/docs/ci-and-prs/github-actions-setup)
 
 ### 4. Configure rules
 
