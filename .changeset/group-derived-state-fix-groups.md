@@ -1,5 +1,5 @@
 ---
-"react-doctor": minor
+"react-doctor": patch
 ---
 
 Group findings that a single fix resolves into one root-cause task.
