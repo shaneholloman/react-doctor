@@ -1,4 +1,5 @@
 import { defineRule } from "../../utils/define-rule.js";
+import { skipNonProductionFiles } from "../../utils/skip-non-production-files.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
@@ -9,7 +10,7 @@ export const noEval = defineRule({
   severity: "error",
   recommendation:
     "Use `JSON.parse` for data, or rewrite the code so it doesn't build and run code from strings.",
-  create: (context: RuleContext) => ({
+  create: skipNonProductionFiles((context: RuleContext) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (isNodeOfType(node.callee, "Identifier") && node.callee.name === "eval") {
         context.report({
@@ -40,5 +41,5 @@ export const noEval = defineRule({
         });
       }
     },
-  }),
+  })),
 });

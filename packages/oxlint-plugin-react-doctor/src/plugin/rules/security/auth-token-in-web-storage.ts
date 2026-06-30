@@ -1,4 +1,5 @@
 import { defineRule } from "../../utils/define-rule.js";
+import { skipNonProductionFiles } from "../../utils/skip-non-production-files.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
@@ -51,7 +52,7 @@ export const authTokenInWebStorage = defineRule({
   severity: "warn",
   recommendation:
     "Don't persist auth tokens (JWTs, access/refresh tokens, secrets) in `localStorage`/`sessionStorage`; they're readable by any XSS. Use an `HttpOnly` cookie set by the server.",
-  create: (context) => ({
+  create: skipNonProductionFiles((context) => ({
     // `localStorage.setItem("authToken", t)`
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       const callee = node.callee;
@@ -79,5 +80,5 @@ export const authTokenInWebStorage = defineRule({
       if (!propertyName || !SENSITIVE_KEY_PATTERN.test(propertyName)) return;
       context.report({ node: target, message: MESSAGE });
     },
-  }),
+  })),
 });
