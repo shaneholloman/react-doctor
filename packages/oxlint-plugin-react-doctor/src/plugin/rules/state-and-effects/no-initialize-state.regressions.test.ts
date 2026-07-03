@@ -30,6 +30,122 @@ describe("no-initialize-state — regressions", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("stays silent when a mount effect seeds a zero-arg new Date() value", () => {
+    const result = runRule(
+      noInitializeState,
+      `function Clock() {
+        const [now, setNow] = useState(null);
+        useEffect(() => { setNow(new Date().toLocaleTimeString()); }, []);
+        return <time>{now}</time>;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent when the cleanup disposes the resource feeding the setter", () => {
+    const result = runRule(
+      noInitializeState,
+      `function AudioNodeState() {
+        const [gainNode, setGainNode] = useState(null);
+        useEffect(() => {
+          const audioContext = new AudioContext();
+          setGainNode(audioContext.createGain());
+          return () => {
+            audioContext.close();
+          };
+        }, []);
+        return null;
+      }`,
+      { filename: "audio.tsx" },
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent when a mount effect stores a socket its cleanup closes", () => {
+    const result = runRule(
+      noInitializeState,
+      `function LiveFeed({ url }) {
+        const [socket, setSocket] = useState(null);
+        useEffect(() => {
+          const webSocket = new WebSocket(url);
+          setSocket(webSocket);
+          return () => webSocket.close();
+        }, []);
+        return null;
+      }`,
+      { filename: "feed.tsx" },
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent when the setter only fires from an observer callback", () => {
+    const result = runRule(
+      noInitializeState,
+      `function ObserverConnected() {
+        const [entryCount, setEntryCount] = useState(0);
+        useEffect(() => {
+          const observer = new MutationObserver((mutations) => setEntryCount(mutations.length));
+          observer.observe(document.body, { childList: true });
+          return () => observer.disconnect();
+        }, []);
+        return <output>{entryCount}</output>;
+      }`,
+      { filename: "observer.tsx" },
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags a hoistable literal local even when the cleanup mentions it", () => {
+    const result = runRule(
+      noInitializeState,
+      `function C() {
+        const [count, setCount] = useState(null);
+        useEffect(() => {
+          const initial = 42;
+          setCount(initial);
+          return () => console.log(initial);
+        }, []);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("still flags a literal init even when the effect has an unrelated cleanup", () => {
+    const result = runRule(
+      noInitializeState,
+      `function C() {
+        const [count, setCount] = useState(null);
+        useEffect(() => {
+          setCount(42);
+          const id = setInterval(() => {}, 1000);
+          return () => clearInterval(id);
+        }, []);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("still flags a deterministic new Date(value) init from a mount effect", () => {
+    const result = runRule(
+      noInitializeState,
+      `function C({ createdAt }) {
+        const [label, setLabel] = useState("");
+        useEffect(() => { setLabel(new Date(0).toISOString()); }, []);
+        return <span>{label}</span>;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("still flags a deterministic literal init from a mount effect", () => {
     const result = runRule(
       noInitializeState,

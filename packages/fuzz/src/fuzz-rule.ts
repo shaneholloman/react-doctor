@@ -9,7 +9,9 @@ import {
   MAX_NOISE_MUTATIONS,
   NOISE_MUTATION_PROBABILITY,
   SLOW_RULE_THRESHOLD_MS,
+  SLOW_VERIFY_RERUN_COUNT,
 } from "./constants.js";
+import { buildAstEquivalentFuzzVariants } from "./ast-equivalent-fuzz-variants.js";
 import { buildEquivalentFuzzVariants } from "./equivalent-fuzz-variants.js";
 import { generateStructuredFuzzProgram } from "./generate-fuzz-program.js";
 import type { FuzzCorpusEntry } from "./load-fuzz-corpus.js";
@@ -147,15 +149,27 @@ export const fuzzRuleWithStats = (
     }
     if ((outcome.diagnosticSignature?.length ?? 0) > 0) stats.firedProgramCount += 1;
     if (outcome.elapsedMs > slowThresholdMs) {
-      findings.push({
-        ruleId,
-        kind: "slow",
-        seed: iterationSeed,
-        iteration,
-        detail: `took ${Math.round(outcome.elapsedMs)}ms (threshold ${slowThresholdMs}ms)`,
-        code,
-        variantLabel,
-      });
+      // Wall-clock spikes from CPU contention (parallel test runs, CI
+      // neighbors) masquerade as pathological rules. Re-run the exact
+      // program and keep the fastest time — a genuinely slow input stays
+      // slow on every run, while a descheduled one drops to milliseconds.
+      let fastestElapsedMs = outcome.elapsedMs;
+      for (let retry = 0; retry < SLOW_VERIFY_RERUN_COUNT; retry += 1) {
+        const rerun = runRuleOnCode(rule, code, filename);
+        if (rerun.elapsedMs < fastestElapsedMs) fastestElapsedMs = rerun.elapsedMs;
+        if (fastestElapsedMs <= slowThresholdMs) break;
+      }
+      if (fastestElapsedMs > slowThresholdMs) {
+        findings.push({
+          ruleId,
+          kind: "slow",
+          seed: iterationSeed,
+          iteration,
+          detail: `took ${Math.round(fastestElapsedMs)}ms verified across reruns (threshold ${slowThresholdMs}ms)`,
+          code,
+          variantLabel,
+        });
+      }
     }
     return outcome;
   };
@@ -205,7 +219,10 @@ export const fuzzRuleWithStats = (
     }
 
     if (!options.checkInvariants || isScanRule || didApplyNoise) continue;
-    for (const variant of buildEquivalentFuzzVariants(code, sections)) {
+    for (const variant of [
+      ...buildEquivalentFuzzVariants(code, sections),
+      ...buildAstEquivalentFuzzVariants(code, filename),
+    ]) {
       if (hasParseErrors(variant.code, filename)) continue;
       const variantOutcome = runRuleOnCode(rule, variant.code, filename);
       if (variantOutcome.crashDetail !== undefined) {
