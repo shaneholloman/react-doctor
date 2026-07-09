@@ -306,6 +306,21 @@ describe("no-pass-live-state-to-parent — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags a parent push whose `props` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noPassLiveStateToParent,
+      `const Child = (props) => {
+        const [results, setResults] = useState([]);
+        useEffect(() => {
+          (props as any).onResults(results);
+        }, [props, results]);
+        return null;
+      };`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("stays silent on a string read from a prop value (text.search)", () => {
     const result = runRule(
       noPassLiveStateToParent,

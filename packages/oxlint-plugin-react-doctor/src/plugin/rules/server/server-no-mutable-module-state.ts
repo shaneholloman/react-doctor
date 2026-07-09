@@ -5,6 +5,10 @@ import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isFunctionLike } from "../../utils/is-function-like.js";
+import {
+  TRANSPARENT_EXPRESSION_WRAPPER_TYPES,
+  stripParenExpression,
+} from "../../utils/strip-paren-expression.js";
 import type { ScopeAnalysis, SymbolDescriptor } from "../../semantic/scope-analysis.js";
 
 const MUTABLE_CONTAINER_CONSTRUCTORS = new Set(["Map", "Set", "WeakMap", "WeakSet"]);
@@ -67,12 +71,20 @@ const getMemberPropertyName = (
 // property depth is attributed back to the module binding.
 const ascendMemberChain = (referenceIdentifier: EsTreeNode): EsTreeNode => {
   let chainTip: EsTreeNode = referenceIdentifier;
-  while (
-    chainTip.parent &&
-    isNodeOfType(chainTip.parent, "MemberExpression") &&
-    chainTip.parent.object === chainTip
-  ) {
-    chainTip = chainTip.parent;
+  while (chainTip.parent) {
+    if (
+      TRANSPARENT_EXPRESSION_WRAPPER_TYPES.has(chainTip.parent.type) &&
+      "expression" in chainTip.parent &&
+      chainTip.parent.expression === chainTip
+    ) {
+      chainTip = chainTip.parent;
+      continue;
+    }
+    if (isNodeOfType(chainTip.parent, "MemberExpression") && chainTip.parent.object === chainTip) {
+      chainTip = chainTip.parent;
+      continue;
+    }
+    break;
   }
   return chainTip;
 };
@@ -124,9 +136,10 @@ const isMutatedThroughCallArgument = (
   const callee = callExpression.callee;
   if (isNodeOfType(callee, "MemberExpression")) {
     const methodName = getMemberPropertyName(callee);
+    const calleeReceiver = stripParenExpression(callee.object);
     return Boolean(
-      isNodeOfType(callee.object, "Identifier") &&
-      callee.object.name === "Object" &&
+      isNodeOfType(calleeReceiver, "Identifier") &&
+      calleeReceiver.name === "Object" &&
       methodName !== null &&
       OBJECT_MUTATING_METHODS.has(methodName) &&
       referenceArgumentIndex === 0,

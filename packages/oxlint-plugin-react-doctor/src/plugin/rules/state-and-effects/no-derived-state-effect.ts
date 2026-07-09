@@ -6,6 +6,7 @@ import { getEffectCallback } from "../../utils/get-effect-callback.js";
 import { getRootIdentifierName } from "../../utils/get-root-identifier-name.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
 import { isInitialOnlyPropName } from "../../utils/is-initial-only-prop-name.js";
+import { isNoOpStatement } from "../../utils/is-no-op-statement.js";
 import { isSetterCall } from "../../utils/is-setter-call.js";
 import { isSetterIdentifier } from "../../utils/is-setter-identifier.js";
 import { isUseStateSetterInScope } from "../../utils/is-use-state-setter-in-scope.js";
@@ -97,6 +98,7 @@ const flattenGuardedStatements = (
 ): ReadonlyArray<EsTreeNode> | null => {
   const flattened: EsTreeNode[] = [];
   for (const statement of statements) {
+    if (isNoOpStatement(statement)) continue;
     if (isNodeOfType(statement, "ExpressionStatement")) {
       flattened.push(statement);
       continue;

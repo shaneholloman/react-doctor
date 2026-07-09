@@ -14,6 +14,7 @@ import { getRequireCallSource } from "../../utils/get-require-call-source.js";
 import { getRootIdentifierName } from "../../utils/get-root-identifier-name.js";
 import { isInsideFunctionScope } from "../../utils/is-inside-function-scope.js";
 import { isMemberProperty } from "../../utils/is-member-property.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
@@ -58,23 +59,24 @@ const isBindingReactNativeDimensions = (
 
 const isReactNativeDimensionsCallee = (node: EsTreeNode, callee: EsTreeNode): boolean => {
   if (!isNodeOfType(callee, "MemberExpression")) return false;
+  const receiver = stripParenExpression(callee.object);
 
-  if (isNodeOfType(callee.object, "Identifier")) {
-    const localName = callee.object.name;
+  if (isNodeOfType(receiver, "Identifier")) {
+    const localName = receiver.name;
     const binding = findVariableInitializer(node, localName);
     if (binding !== null) return isBindingReactNativeDimensions(node, binding, localName);
     return localName === "Dimensions";
   }
 
   if (
-    isNodeOfType(callee.object, "MemberExpression") &&
-    !callee.object.computed &&
-    isNodeOfType(callee.object.property, "Identifier") &&
-    callee.object.property.name === "Dimensions"
+    isNodeOfType(receiver, "MemberExpression") &&
+    !receiver.computed &&
+    isNodeOfType(receiver.property, "Identifier") &&
+    receiver.property.name === "Dimensions"
   ) {
-    const moduleSource = getInitializerModuleSource(node, callee.object.object);
+    const moduleSource = getInitializerModuleSource(node, receiver.object);
     if (moduleSource === REACT_NATIVE_MODULE) return true;
-    const rootName = getRootIdentifierName(callee.object.object);
+    const rootName = getRootIdentifierName(receiver.object);
     if (rootName === null) return false;
     const importBinding = getImportBindingForName(node, rootName);
     return (
@@ -84,13 +86,13 @@ const isReactNativeDimensionsCallee = (node: EsTreeNode, callee: EsTreeNode): bo
     );
   }
 
-  const requireSource = getRequireCallSource(callee.object);
+  const requireSource = getRequireCallSource(receiver);
   if (requireSource === REACT_NATIVE_MODULE) {
     return (
-      isNodeOfType(callee.object, "MemberExpression") &&
-      !callee.object.computed &&
-      isNodeOfType(callee.object.property, "Identifier") &&
-      callee.object.property.name === "Dimensions"
+      isNodeOfType(receiver, "MemberExpression") &&
+      !receiver.computed &&
+      isNodeOfType(receiver.property, "Identifier") &&
+      receiver.property.name === "Dimensions"
     );
   }
 

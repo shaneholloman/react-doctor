@@ -2,7 +2,9 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isAllLiteralArrayExpression } from "../../utils/is-all-literal-array-expression.js";
+import { isGlobalMethodCall } from "../../utils/is-global-method-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 const MESSAGE = "Your users can see & submit the wrong data when this list reorders.";
 
@@ -29,7 +31,8 @@ const THIRD_INDEX_METHODS: ReadonlySet<string> = new Set(["reduce", "reduceRight
 // In each of these the array's identity-vs-position is fixed by the
 // source string/length — reordering can't happen, so using the index
 // as the key is semantically right.
-const isPositionallyStableIterationReceiver = (receiver: EsTreeNode): boolean => {
+const isPositionallyStableIterationReceiver = (receiverNode: EsTreeNode): boolean => {
+  const receiver = stripParenExpression(receiverNode);
   // `[lit, lit, lit].map(...)` — fixed-shape literal array, order is stable.
   if (isAllLiteralArrayExpression(receiver)) return true;
   // `[...Array(N)].map(...)` or `[...Array.from(...)].map(...)` — spread
@@ -45,11 +48,7 @@ const isPositionallyStableIterationReceiver = (receiver: EsTreeNode): boolean =>
   const callee = receiver.callee;
   // Array.from({ length: N })  /  Array.from({ length: N }, ...)
   if (
-    isNodeOfType(callee, "MemberExpression") &&
-    isNodeOfType(callee.object, "Identifier") &&
-    callee.object.name === "Array" &&
-    isNodeOfType(callee.property, "Identifier") &&
-    callee.property.name === "from" &&
+    isGlobalMethodCall(receiver, "Array", "from") &&
     receiver.arguments.length >= 1 &&
     isNodeOfType(receiver.arguments[0] as EsTreeNode, "ObjectExpression")
   ) {
@@ -84,17 +83,8 @@ const isPositionallyStableIterationReceiver = (receiver: EsTreeNode): boolean =>
 const isArrayFromMapperCallback = (
   parentCall: EsTreeNodeOfType<"CallExpression">,
   callback: EsTreeNode,
-): boolean => {
-  if (parentCall.arguments[1] !== callback) return false;
-  const callee = parentCall.callee;
-  return (
-    isNodeOfType(callee, "MemberExpression") &&
-    isNodeOfType(callee.object, "Identifier") &&
-    callee.object.name === "Array" &&
-    isNodeOfType(callee.property, "Identifier") &&
-    callee.property.name === "from"
-  );
-};
+): boolean =>
+  parentCall.arguments[1] === callback && isGlobalMethodCall(parentCall, "Array", "from");
 
 // `Array.from(source, mapper)` — the positional stability of the
 // produced array depends on `source`. `{length: N}` is the placeholder
@@ -211,7 +201,7 @@ const expressionUsesIndex = (expression: EsTreeNode, paramName: string): boolean
       isNodeOfType(expression.callee, "MemberExpression") &&
       isNodeOfType(expression.callee.property, "Identifier") &&
       expression.callee.property.name === "toString" &&
-      isIndexReference(expression.callee.object as EsTreeNode, paramName)
+      isIndexReference(stripParenExpression(expression.callee.object), paramName)
     ) {
       return true;
     }
@@ -228,13 +218,8 @@ const expressionUsesIndex = (expression: EsTreeNode, paramName: string): boolean
   return false;
 };
 
-const isReactCloneElement = (callExpression: EsTreeNodeOfType<"CallExpression">): boolean => {
-  const callee = callExpression.callee;
-  if (!isNodeOfType(callee, "MemberExpression")) return false;
-  if (!isNodeOfType(callee.property, "Identifier")) return false;
-  if (callee.property.name !== "cloneElement") return false;
-  return isNodeOfType(callee.object, "Identifier") && callee.object.name === "React";
-};
+const isReactCloneElement = (callExpression: EsTreeNodeOfType<"CallExpression">): boolean =>
+  isGlobalMethodCall(callExpression, "React", "cloneElement");
 
 // Port of `oxc_linter::rules::react::no_array_index_key`, scoped to the
 // `React.cloneElement(child, { key: index })` shape only. The JSX

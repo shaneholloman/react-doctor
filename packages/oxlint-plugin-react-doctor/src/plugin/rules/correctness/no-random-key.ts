@@ -71,7 +71,7 @@ const isAlwaysFreshExpression = (expression: EsTreeNode): string | null => {
   }
 
   if (isNodeOfType(callee, "MemberExpression") && !callee.computed) {
-    const receiver = callee.object;
+    const receiver = stripParenExpression(callee.object);
     const property = callee.property;
     if (!isNodeOfType(property, "Identifier")) return null;
 

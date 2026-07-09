@@ -1,6 +1,7 @@
 import type { EsTreeNode } from "./es-tree-node.js";
 import { getCalleeName } from "./get-callee-name.js";
 import { isNodeOfType } from "./is-node-of-type.js";
+import { stripParenExpression } from "./strip-paren-expression.js";
 
 const PRAGMA = "React";
 
@@ -14,7 +15,8 @@ export const isReactFunctionCall = (node: EsTreeNode, expectedCall: string): boo
   if (calleeName !== expectedCall) return false;
 
   if (isNodeOfType(node.callee, "MemberExpression")) {
-    return isNodeOfType(node.callee.object, "Identifier") && node.callee.object.name === PRAGMA;
+    const receiver = stripParenExpression(node.callee.object);
+    return isNodeOfType(receiver, "Identifier") && receiver.name === PRAGMA;
   }
   return true;
 };

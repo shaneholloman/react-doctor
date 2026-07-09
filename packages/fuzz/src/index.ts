@@ -12,6 +12,8 @@ export { generatePathologicalProgram } from "./generate-pathological-program.js"
 export { crossoverFuzzPrograms, mutateFuzzProgram } from "./mutate-fuzz-program.js";
 export { buildEquivalentFuzzVariants } from "./equivalent-fuzz-variants.js";
 export type { EquivalentVariant } from "./equivalent-fuzz-variants.js";
+export { buildVerdictPreservingVariants } from "./verdict-preserving-variants.js";
+export type { VerdictPreservingVariant } from "./verdict-preserving-variants.js";
 export { loadFuzzCorpus } from "./load-fuzz-corpus.js";
 export type { FuzzCorpusEntry } from "./load-fuzz-corpus.js";
 export { createSeededRandom } from "./seeded-random.js";

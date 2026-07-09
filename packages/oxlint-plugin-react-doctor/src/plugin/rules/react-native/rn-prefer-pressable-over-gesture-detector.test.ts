@@ -17,6 +17,19 @@ describe("rn-prefer-pressable-over-gesture-detector", () => {
     expect(result.diagnostics[0].message).toContain("GestureDetector");
   });
 
+  it("flags a Tap chain whose `Gesture` receiver is wrapped in `as any`", () => {
+    const code = `
+      import { GestureDetector, Gesture } from "react-native-gesture-handler";
+      const Button = () => (
+        <GestureDetector gesture={(Gesture as any).Tap()}>
+          <Animated.View />
+        </GestureDetector>
+      );
+    `;
+    const result = runRule(rnPreferPressableOverGestureDetector, code);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("flags variable-extracted Gesture.Tap() chain (binding analysis)", () => {
     const code = `
       import { GestureDetector, Gesture } from "react-native-gesture-handler";

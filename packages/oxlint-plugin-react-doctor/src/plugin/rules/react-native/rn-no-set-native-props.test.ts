@@ -28,6 +28,12 @@ describe("rn-no-set-native-props", () => {
     expect(result.diagnostics).toHaveLength(1);
   });
 
+  it("flags setNativeProps when the `.current` receiver is wrapped in `as any`", () => {
+    const code = `(inputRef.current as any).setNativeProps({ text });`;
+    const result = runRule(rnNoSetNativeProps, code);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("does NOT flag an uncalled member access", () => {
     const code = `const fn = ref.current.setNativeProps;`;
     const result = runRule(rnNoSetNativeProps, code);

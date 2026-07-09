@@ -4,6 +4,7 @@ import type { EsTreeNodeOfType } from "../../../../utils/es-tree-node-of-type.js
 import { isAstNode } from "../../../../utils/is-ast-node.js";
 import { isFunctionLike } from "../../../../utils/is-function-like.js";
 import { isNodeOfType } from "../../../../utils/is-node-of-type.js";
+import { TRANSPARENT_EXPRESSION_WRAPPER_TYPES } from "../../../../utils/strip-paren-expression.js";
 import { getScopeForNode, type ProgramAnalysis } from "./get-program-analysis.js";
 import { VISITOR_KEYS } from "./constants.js";
 
@@ -199,7 +200,11 @@ export const getCallExpr = (
     let node: EsTreeNode = ref.identifier as unknown as EsTreeNode;
     let parent: EsTreeNode | null | undefined = (node as unknown as { parent?: EsTreeNode | null })
       .parent;
-    while (parent && isNodeOfType(parent, "MemberExpression")) {
+    while (
+      parent &&
+      (isNodeOfType(parent, "MemberExpression") ||
+        TRANSPARENT_EXPRESSION_WRAPPER_TYPES.has(parent.type))
+    ) {
       node = parent;
       parent = (node as unknown as { parent?: EsTreeNode | null }).parent;
     }
@@ -207,7 +212,10 @@ export const getCallExpr = (
       return current;
     }
   }
-  if (isNodeOfType(current, "MemberExpression")) {
+  if (
+    isNodeOfType(current, "MemberExpression") ||
+    TRANSPARENT_EXPRESSION_WRAPPER_TYPES.has(current.type)
+  ) {
     return getCallExpr(ref, current.parent as EsTreeNode | undefined);
   }
   return null;

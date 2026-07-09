@@ -1,7 +1,9 @@
 import { defineRule } from "../../utils/define-rule.js";
+import { isGlobalMethodCall } from "../../utils/is-global-method-call.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 const VERSIONED_KEY_PATTERN = /(?:[._:-]v\d+|@\d+|\bv\d+\b)/i;
@@ -29,14 +31,8 @@ const isVersionedKey = (key: string): boolean =>
 // Heuristic: flag only when the *value* is a `JSON.stringify(...)` call
 // — those are the cases where schema versioning matters. Simple flags
 // like `setItem("count", "5")` don't need versioning and would be noise.
-const isJsonStringifyCall = (node: EsTreeNode): boolean => {
-  if (!isNodeOfType(node, "CallExpression")) return false;
-  if (!isNodeOfType(node.callee, "MemberExpression")) return false;
-  if (!isNodeOfType(node.callee.object, "Identifier")) return false;
-  if (node.callee.object.name !== "JSON") return false;
-  if (!isNodeOfType(node.callee.property, "Identifier")) return false;
-  return node.callee.property.name === "stringify";
-};
+const isJsonStringifyCall = (node: EsTreeNode): boolean =>
+  isGlobalMethodCall(node, "JSON", "stringify");
 
 // The key is either an inline string literal or an identifier that resolves
 // to a `const` string literal (`const CACHE_KEY = 'prefs'` then
@@ -65,8 +61,9 @@ export const clientLocalstorageNoVersion = defineRule({
   create: (context: RuleContext) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (!isNodeOfType(node.callee, "MemberExpression")) return;
-      if (!isNodeOfType(node.callee.object, "Identifier")) return;
-      if (!STORAGE_OBJECTS.has(node.callee.object.name)) return;
+      const receiver = stripParenExpression(node.callee.object);
+      if (!isNodeOfType(receiver, "Identifier")) return;
+      if (!STORAGE_OBJECTS.has(receiver.name)) return;
       if (!isNodeOfType(node.callee.property, "Identifier")) return;
       if (node.callee.property.name !== "setItem") return;
 
@@ -82,7 +79,7 @@ export const clientLocalstorageNoVersion = defineRule({
 
       context.report({
         node: keyArg,
-        message: `${node.callee.object.name}.setItem("${keyValue}", JSON.stringify(...)) has no version, so changing the data shape later crashes your users' saved sessions. Add one to the key (e.g. "${keyValue}:v1").`,
+        message: `${receiver.name}.setItem("${keyValue}", JSON.stringify(...)) has no version, so changing the data shape later crashes your users' saved sessions. Add one to the key (e.g. "${keyValue}:v1").`,
       });
     },
   }),

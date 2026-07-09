@@ -23,10 +23,30 @@ const ALWAYS_FOCUSABLE_TAGS: ReadonlySet<string> = new Set([
   "textarea",
 ]);
 
+// React drops a statically-false boolean attribute (`controls={false}`,
+// `disabled={false}`), so it is identical to the attribute being absent.
+const isStaticallyFalseBooleanAttribute = (
+  attribute: EsTreeNodeOfType<"JSXAttribute">,
+): boolean => {
+  const value = attribute.value;
+  if (!value || !isNodeOfType(value, "JSXExpressionContainer")) return false;
+  const expression = value.expression;
+  return isNodeOfType(expression, "Literal") && expression.value === false;
+};
+
+// Form controls the `disabled` attribute removes from the tab order
+// (per OXC's `is_focusable`; `aria-disabled` does NOT unfocus, so it
+// deliberately doesn't count here).
+const DISABLEABLE_TAGS: ReadonlySet<string> = new Set(["button", "input", "select", "textarea"]);
+
 const isNativelyFocusable = (
   tagName: string,
   openingElement: EsTreeNodeOfType<"JSXOpeningElement">,
 ): boolean => {
+  if (DISABLEABLE_TAGS.has(tagName)) {
+    const disabledAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "disabled");
+    if (disabledAttribute && !isStaticallyFalseBooleanAttribute(disabledAttribute)) return false;
+  }
   if (ALWAYS_FOCUSABLE_TAGS.has(tagName)) return true;
   switch (tagName) {
     case "input": {
@@ -41,8 +61,12 @@ const isNativelyFocusable = (
     case "area":
       return hasJsxPropIgnoreCase(openingElement.attributes, "href") !== undefined;
     case "audio":
-    case "video":
-      return hasJsxPropIgnoreCase(openingElement.attributes, "controls") !== undefined;
+    case "video": {
+      const controlsAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "controls");
+      return (
+        controlsAttribute !== undefined && !isStaticallyFalseBooleanAttribute(controlsAttribute)
+      );
+    }
     default:
       return false;
   }

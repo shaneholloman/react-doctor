@@ -137,4 +137,95 @@ describe("performance/no-usememo-simple-expression — regressions", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics).toEqual([]);
   });
+
+  describe("fuzz sweep: identity-escape analysis", () => {
+    const expectFires = (code: string): void => {
+      const result = runRule(noUsememoSimpleExpression, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    };
+    const expectSilent = (code: string): void => {
+      const result = runRule(noUsememoSimpleExpression, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    };
+
+    it("flags reads through TS wrappers (`memo!.length`, `(memo as string[]).length`)", () => {
+      expectFires(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); return <p>{memo!.length}</p>; }",
+      );
+      expectFires(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); return <p>{(memo as string[]).length}</p>; }",
+      );
+    });
+
+    it("flags indexed and optional-chain element reads", () => {
+      expectFires(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); return <p>{memo[0]}</p>; }",
+      );
+      expectFires(
+        "function C({ x, key }) { const memo = useMemo(() => [x], [x]); return <p>{memo?.[key]}</p>; }",
+      );
+    });
+
+    it("flags a zero-deps trivial container (rebuilds every render anyway)", () => {
+      expectFires(
+        "function C({ x }) { const memo = useMemo(() => [x]); return <p>{memo.length}</p>; }",
+      );
+    });
+
+    it("flags an unreferenced memo binding", () => {
+      expectFires("function C({ x }) { const memo = useMemo(() => [x], [x]); return null; }");
+    });
+
+    it("stays silent when the memo result is mutated through the binding", () => {
+      // Rebuilding the literal inline would reset the mutation each
+      // render — the memo's cross-render persistence is load-bearing.
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); const handleAdd = () => { memo.push(x); }; return <p onClick={handleAdd}>{memo.length}</p>; }",
+      );
+      expectSilent(
+        "function C({ x, y }) { const memo = useMemo(() => [x, y], [x, y]); memo.sort(); return <p>{memo[0]}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => ({ count: x }), [x]); const handleBump = () => { memo.count = 1; }; return <p onClick={handleBump}>{memo.count}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); const handleSet = () => { memo[0] = x + 1; }; return <p onClick={handleSet}>{memo[0]}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => ({ a: x }), [x]); const handleDrop = () => { delete memo.a; }; return <p onClick={handleDrop}>{memo.a}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => ({ count: x }), [x]); const handleBump = () => { memo.count++; }; return <p onClick={handleBump}>{memo.count}</p>; }",
+      );
+    });
+
+    it("stays silent on identity-consuming reads (call arg, comparison, template, alias, JSX child/spread)", () => {
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); track(memo); return null; }",
+      );
+      expectSilent(
+        "function C({ x, other }) { const memo = useMemo(() => [x], [x]); return <p>{memo === other}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); return <p>{`${memo}`}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); const alias = memo; return <p>{alias.length}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => [x], [x]); return <p>{memo}</p>; }",
+      );
+      expectSilent(
+        "function C({ x }) { const memo = useMemo(() => ({ id: x }), [x]); return <div {...memo} />; }",
+      );
+    });
+
+    it("stays silent on a computed-key object literal", () => {
+      expectSilent(
+        "function C({ x, key }) { const memo = useMemo(() => ({ [key]: x }), [x, key]); return <p>{memo.size}</p>; }",
+      );
+    });
+  });
 });

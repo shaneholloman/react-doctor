@@ -29,6 +29,19 @@ export async function remember(id, value) {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags a mutation when the container receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      serverNoMutableModuleState,
+      `"use server";
+const cache = new Map();
+export async function remember(id, value) {
+  (cache as any).set(id, value);
+}`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("still flags a mutable let regardless of mutation", () => {
     const result = runRule(
       serverNoMutableModuleState,

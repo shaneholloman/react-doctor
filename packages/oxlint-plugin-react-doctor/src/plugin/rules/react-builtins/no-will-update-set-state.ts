@@ -2,6 +2,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isSetStateCallInLifecycle } from "../../utils/is-set-state-in-lifecycle.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 const LIFECYCLE_NAMES = new Set(["componentWillUpdate", "UNSAFE_componentWillUpdate"]);
 const MESSAGE =
@@ -59,7 +60,7 @@ export const noWillUpdateSetState = defineRule({
     return {
       CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
         if (!isNodeOfType(node.callee, "MemberExpression")) return;
-        if (!isNodeOfType(node.callee.object, "ThisExpression")) return;
+        if (!isNodeOfType(stripParenExpression(node.callee.object), "ThisExpression")) return;
         if (
           !isNodeOfType(node.callee.property, "Identifier") ||
           node.callee.property.name !== "setState"

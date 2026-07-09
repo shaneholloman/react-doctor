@@ -241,6 +241,18 @@ describe("react-native/rn-no-dimensions-get — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags Dimensions.get when the receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      rnNoDimensionsGet,
+      `import { Dimensions } from "react-native";
+      const Screen = () => {
+        const { width } = (Dimensions as any).get("window");
+        return <View style={{ width }} />;
+      };`,
+    );
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("still flags inline require react-native Dimensions.get", () => {
     const result = runRule(
       rnNoDimensionsGet,

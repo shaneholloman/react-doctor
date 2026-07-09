@@ -10,6 +10,7 @@ import { getJsxAttributeName } from "../../utils/get-jsx-attribute-name.js";
 import { getJsxPropStaticStringValues } from "../../utils/get-jsx-prop-static-string-values.js";
 import { hasJsxPropIgnoreCase } from "../../utils/has-jsx-prop-ignore-case.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { isNullishExpression } from "../../utils/is-nullish-expression.js";
 
 const buildMessageDefault = (roles: ReadonlyArray<string>, propName: string): string => {
   const roleList = roles.map((role) => `\`${role}\``).join(" / ");
@@ -43,6 +44,16 @@ export const roleSupportsAriaProps = defineRule({
         const propName = propRawName.toLowerCase();
         if (!propName.startsWith("aria-")) continue;
         if (!ARIA_PROPERTIES.has(propName)) continue;
+        // `aria-x={undefined}` / `{null}` renders no attribute at all, so
+        // there is nothing for the role to ignore (oxc `is_nullish_value`).
+        const attributeValue = attributeNode.value;
+        if (
+          attributeValue &&
+          isNodeOfType(attributeValue, "JSXExpressionContainer") &&
+          isNullishExpression(attributeValue.expression as EsTreeNode)
+        ) {
+          continue;
+        }
         (ariaAttributes ??= []).push({ attribute: attribute as EsTreeNode, propName });
       }
       if (!ariaAttributes) return;

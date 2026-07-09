@@ -2,6 +2,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import { normalizeFilename } from "../../utils/normalize-filename.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import type { RuleVisitors } from "../../utils/rule-visitors.js";
@@ -52,7 +53,8 @@ interface ChainRoot {
 // Walks down the `.callee.object` chain of a call/member expression to the
 // innermost call whose callee is a bare identifier (`element(...)`,
 // `waitFor(...)`, `expect(...)`), returning that identifier name.
-const findChainRoot = (node: EsTreeNode): ChainRoot | null => {
+const findChainRoot = (wrappedNode: EsTreeNode): ChainRoot | null => {
+  const node = stripParenExpression(wrappedNode);
   if (isNodeOfType(node, "CallExpression")) {
     if (isNodeOfType(node.callee, "Identifier")) {
       return { calleeName: node.callee.name, rootCall: node };

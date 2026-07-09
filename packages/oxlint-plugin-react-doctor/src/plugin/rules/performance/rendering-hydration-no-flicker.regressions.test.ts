@@ -80,4 +80,71 @@ describe("performance/rendering-hydration-no-flicker — regressions", () => {
       };
     `);
   });
+
+  // The SSR-safe timezone/locale adoption pattern (the fix that
+  // no-locale-format-in-render recommends) must not be re-flagged as a
+  // flicker: the value cannot be produced during render without a
+  // hydration mismatch, so the post-mount flash is the correct trade.
+  it("does not flag a setter adopting the browser timezone via Intl", () => {
+    expectPass(`
+      const Clock = ({ utcTime }) => {
+        const [zone, setZone] = useState("UTC");
+        useEffect(() => {
+          setZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+        }, []);
+        return <time>{utcTime} {zone}</time>;
+      };
+    `);
+  });
+
+  it("does not flag a setter formatting with the browser locale post-mount", () => {
+    expectPass(`
+      const Timestamp = ({ value }) => {
+        const [label, setLabel] = useState("");
+        useEffect(() => {
+          setLabel(new Date(value).toLocaleString());
+        }, []);
+        return <time>{label}</time>;
+      };
+    `);
+  });
+
+  it("does not flag a setter adopting navigator.language post-mount", () => {
+    expectPass(`
+      const Greeting = () => {
+        const [language, setLanguage] = useState("en");
+        useEffect(() => {
+          setLanguage(navigator.language);
+        }, []);
+        return <span>{language}</span>;
+      };
+    `);
+  });
+
+  it("still flags when a no-op statement pads the mount effect", () => {
+    expectFail(`
+      import { useEffect, useState } from "react";
+      const Component = () => {
+        const [isClient, setIsClient] = useState(false);
+        useEffect(() => { void 0;
+          setIsClient(true);
+        }, []);
+        return <div>{isClient ? "client" : "server"}</div>;
+      };
+    `);
+  });
+
+  it("stays silent when the second statement is a real side effect", () => {
+    expectPass(`
+      import { useEffect, useState } from "react";
+      const Component = () => {
+        const [isClient, setIsClient] = useState(false);
+        useEffect(() => {
+          reportMount();
+          setIsClient(true);
+        }, []);
+        return <div>{isClient ? "client" : "server"}</div>;
+      };
+    `);
+  });
 });

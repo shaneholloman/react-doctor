@@ -127,6 +127,19 @@ export const List = ({ tracks }: { tracks: Track[] }) => (
       expect(result.diagnostics).toHaveLength(1);
     });
 
+    it("still flags a random key when the `Math` receiver is wrapped in `as any`", () => {
+      const result = runRule(
+        noRandomKey,
+        `export const List = ({ items }: { items: string[] }) => (
+  <ul>{items.map((item) => <li key={(Math as any).random()}>{item}</li>)}</ul>
+);
+`,
+        { filename: "src/list.tsx" },
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    });
+
     it("stays silent on a callback stored in the key expression scope", () => {
       const result = runRule(
         noRandomKey,

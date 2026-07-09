@@ -39,6 +39,16 @@ const resolveStaticStringValues = (
     // Only `const` bindings are safe to inline — anything reassignable
     // (or an import/parameter, whose value we can't see) stays dynamic.
     if (!symbol || symbol.kind !== "const" || !symbol.initializer) return null;
+    // A destructured const (`const { role = "x" } = config`) records the
+    // destructure SOURCE or per-element default as its initializer —
+    // neither is the binding's actual value — so only a plain
+    // `const name = ...` declarator inlines.
+    if (
+      !isNodeOfType(symbol.declarationNode, "VariableDeclarator") ||
+      symbol.declarationNode.id !== symbol.bindingIdentifier
+    ) {
+      return null;
+    }
     return resolveStaticStringValues(symbol.initializer, scopes, remainingHops - 1);
   }
   return null;

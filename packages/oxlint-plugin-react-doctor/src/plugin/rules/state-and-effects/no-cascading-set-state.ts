@@ -87,49 +87,92 @@ const isTerminatingStatement = (statement: EsTreeNode): boolean =>
   isNodeOfType(statement, "ThrowStatement") ||
   isNodeOfType(statement, "ContinueStatement");
 
-// An `if (cond) { …; return }` (no `else`) whose consequent ends the
-// control-flow path: the branch is mutually exclusive with everything
-// AFTER it in the block, so its setters must NOT be summed with the
-// post-guard body — only one path runs.
-const isGuardWithTerminatingBranch = (statement: EsTreeNode): EsTreeNode | null => {
-  if (!isNodeOfType(statement, "IfStatement")) return null;
-  if (statement.alternate) return null;
-  const consequent = statement.consequent as EsTreeNode;
-  if (isTerminatingStatement(consequent)) return consequent;
-  if (
-    isNodeOfType(consequent, "BlockStatement") &&
-    (consequent.body ?? []).some((inner) => isTerminatingStatement(inner as EsTreeNode))
-  ) {
-    return consequent;
+// Path summary for a statement sequence: the max setter count along any
+// path that falls out the end of the sequence, the max along any path
+// that terminates inside it (return/throw/break/continue), and whether
+// EVERY path terminates (making later siblings unreachable).
+interface SequencePathSummary {
+  fallThroughCount: number;
+  maxTerminatedCount: number;
+  doAllPathsTerminate: boolean;
+}
+
+const analyzeBranchStatements = (
+  branch: EsTreeNode,
+  context: HelperCountingContext,
+): SequencePathSummary =>
+  analyzeStatementSequence(
+    isNodeOfType(branch, "BlockStatement") ? ((branch.body ?? []) as EsTreeNode[]) : [branch],
+    context,
+  );
+
+// Walk a statement list modeling block-level control flow: setters before
+// a fork always run (they accumulate), a branch that terminates is a
+// separate mutually-exclusive path (tracked as a max) that never co-runs
+// with the statements after it, a non-terminating branch falls through
+// into the rest of the block, and statements after a point where every
+// path terminates are unreachable. The `if` test's own expression always
+// runs, so its setters accumulate before the fork. Function declarations
+// don't execute where they appear — their setters count at call sites.
+const analyzeStatementSequence = (
+  statements: ReadonlyArray<EsTreeNode>,
+  context: HelperCountingContext,
+): SequencePathSummary => {
+  let fallThroughCount = 0;
+  let maxTerminatedCount = 0;
+  for (const statement of statements) {
+    if (isNodeOfType(statement, "IfStatement")) {
+      fallThroughCount += countMaxPathSetStateCalls(statement.test as EsTreeNode, context);
+      const thenSummary = analyzeBranchStatements(statement.consequent as EsTreeNode, context);
+      const elseSummary = statement.alternate
+        ? analyzeBranchStatements(statement.alternate as EsTreeNode, context)
+        : {
+            fallThroughCount: 0,
+            maxTerminatedCount: 0,
+            doAllPathsTerminate: false,
+          };
+      maxTerminatedCount = Math.max(
+        maxTerminatedCount,
+        fallThroughCount + thenSummary.maxTerminatedCount,
+        fallThroughCount + elseSummary.maxTerminatedCount,
+      );
+      if (thenSummary.doAllPathsTerminate && elseSummary.doAllPathsTerminate) {
+        return {
+          fallThroughCount: 0,
+          maxTerminatedCount,
+          doAllPathsTerminate: true,
+        };
+      }
+      const fallThroughBranchCounts = [
+        ...(thenSummary.doAllPathsTerminate ? [] : [thenSummary.fallThroughCount]),
+        ...(elseSummary.doAllPathsTerminate ? [] : [elseSummary.fallThroughCount]),
+      ];
+      fallThroughCount += Math.max(...fallThroughBranchCounts);
+      continue;
+    }
+    if (isTerminatingStatement(statement)) {
+      // `return setX(1);` still dispatches the setter — count the
+      // statement's own expression before ending the path. Cleanup
+      // closures (`return () => {…}`) stay uncounted: function-like
+      // children are scope boundaries in countMaxPathSetStateCalls.
+      const terminatedPathCount = fallThroughCount + countMaxPathSetStateCalls(statement, context);
+      return {
+        fallThroughCount: 0,
+        maxTerminatedCount: Math.max(maxTerminatedCount, terminatedPathCount),
+        doAllPathsTerminate: true,
+      };
+    }
+    fallThroughCount += countMaxPathSetStateCalls(statement, context);
   }
-  return null;
+  return { fallThroughCount, maxTerminatedCount, doAllPathsTerminate: false };
 };
 
-// Count setters along a single execution path through a statement list,
-// modeling block-level control flow: setters before an early-returning
-// guard always run (they accumulate), the guard branch is a separate
-// mutually-exclusive path (tracked as a max), and statements after an
-// unconditional `return`/`throw` are unreachable. Function declarations
-// don't execute where they appear — their setters count at call sites.
 const countStatementSequenceSetStateCalls = (
   statements: ReadonlyArray<EsTreeNode>,
   context: HelperCountingContext,
 ): number => {
-  let fallThroughCount = 0;
-  let maxTerminatingPathCount = 0;
-  for (const statement of statements) {
-    const guardBranch = isGuardWithTerminatingBranch(statement);
-    if (guardBranch) {
-      maxTerminatingPathCount = Math.max(
-        maxTerminatingPathCount,
-        fallThroughCount + countMaxPathSetStateCalls(guardBranch, context),
-      );
-      continue;
-    }
-    if (isTerminatingStatement(statement)) break;
-    fallThroughCount += countMaxPathSetStateCalls(statement, context);
-  }
-  return Math.max(maxTerminatingPathCount, fallThroughCount);
+  const summary = analyzeStatementSequence(statements, context);
+  return Math.max(summary.fallThroughCount, summary.maxTerminatedCount);
 };
 
 interface HelperCountingContext {
@@ -417,8 +460,14 @@ const isDevOnlyGuardedEffect = (callback: EsTreeNode): boolean => {
   if (!body || !isNodeOfType(body, "BlockStatement")) return false;
   const firstStatement = (body.body ?? [])[0] as EsTreeNode | undefined;
   if (!firstStatement) return false;
-  if (!isGuardWithTerminatingBranch(firstStatement)) return false;
-  return mentionsDevEnvFlag((firstStatement as EsTreeNodeOfType<"IfStatement">).test as EsTreeNode);
+  if (!isNodeOfType(firstStatement, "IfStatement") || firstStatement.alternate) return false;
+  const consequent = firstStatement.consequent as EsTreeNode;
+  const doesConsequentTerminate =
+    isTerminatingStatement(consequent) ||
+    (isNodeOfType(consequent, "BlockStatement") &&
+      (consequent.body ?? []).some((inner) => isTerminatingStatement(inner as EsTreeNode)));
+  if (!doesConsequentTerminate) return false;
+  return mentionsDevEnvFlag(firstStatement.test as EsTreeNode);
 };
 
 export const noCascadingSetState = defineRule({

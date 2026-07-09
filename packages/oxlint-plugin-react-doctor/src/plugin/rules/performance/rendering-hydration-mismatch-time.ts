@@ -1,20 +1,20 @@
 import { defineRule } from "../../utils/define-rule.js";
 import { walkAst } from "../../utils/walk-ast.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
-import { findDeclaratorForBinding } from "../../utils/find-declarator-for-binding.js";
+import { executesDuringRender } from "../../utils/executes-during-render.js";
 import { findProgramRoot } from "../../utils/find-program-root.js";
-import { findVariableInitializer } from "../../utils/find-variable-initializer.js";
-import { flattenLogicalAndChain } from "../../utils/flatten-logical-and-chain.js";
 import { hasEmailTemplateImport } from "../../utils/has-email-template-import.js";
+import { hasSuppressHydrationWarningAttribute } from "../../utils/has-suppress-hydration-warning-attribute.js";
 import { isFunctionLike } from "../../utils/is-function-like.js";
+import { isGatedByFalsyInitialState } from "../../utils/is-gated-by-falsy-initial-state.js";
 import { isGeneratedImageRenderContext } from "../../utils/is-generated-image-render-context.js";
-import { isHookCall } from "../../utils/is-hook-call.js";
+import { isInsideClientOnlyGuard } from "../../utils/is-inside-client-only-guard.js";
 import { classifyReactNativeFileTarget } from "../../utils/is-react-native-file.js";
 import { isTestlikeFilename } from "../../utils/is-testlike-filename.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import type { RuleVisitors } from "../../utils/rule-visitors.js";
+import { isGlobalMethodCall } from "../../utils/is-global-method-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
-import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 const NONDETERMINISTIC_RENDER_PATTERNS: Array<{
@@ -34,43 +34,19 @@ const NONDETERMINISTIC_RENDER_PATTERNS: Array<{
   },
   {
     display: "Date.now()",
-    matches: (node) =>
-      isNodeOfType(node, "CallExpression") &&
-      isNodeOfType(node.callee, "MemberExpression") &&
-      isNodeOfType(node.callee.object, "Identifier") &&
-      node.callee.object.name === "Date" &&
-      isNodeOfType(node.callee.property, "Identifier") &&
-      node.callee.property.name === "now",
+    matches: (node) => isGlobalMethodCall(node, "Date", "now"),
   },
   {
     display: "Math.random()",
-    matches: (node) =>
-      isNodeOfType(node, "CallExpression") &&
-      isNodeOfType(node.callee, "MemberExpression") &&
-      isNodeOfType(node.callee.object, "Identifier") &&
-      node.callee.object.name === "Math" &&
-      isNodeOfType(node.callee.property, "Identifier") &&
-      node.callee.property.name === "random",
+    matches: (node) => isGlobalMethodCall(node, "Math", "random"),
   },
   {
     display: "performance.now()",
-    matches: (node) =>
-      isNodeOfType(node, "CallExpression") &&
-      isNodeOfType(node.callee, "MemberExpression") &&
-      isNodeOfType(node.callee.object, "Identifier") &&
-      node.callee.object.name === "performance" &&
-      isNodeOfType(node.callee.property, "Identifier") &&
-      node.callee.property.name === "now",
+    matches: (node) => isGlobalMethodCall(node, "performance", "now"),
   },
   {
     display: "crypto.randomUUID()",
-    matches: (node) =>
-      isNodeOfType(node, "CallExpression") &&
-      isNodeOfType(node.callee, "MemberExpression") &&
-      isNodeOfType(node.callee.object, "Identifier") &&
-      node.callee.object.name === "crypto" &&
-      isNodeOfType(node.callee.property, "Identifier") &&
-      node.callee.property.name === "randomUUID",
+    matches: (node) => isGlobalMethodCall(node, "crypto", "randomUUID"),
   },
 ];
 
@@ -82,104 +58,6 @@ const findOpeningElementOfChild = (jsxNode: EsTreeNode): EsTreeNode | null => {
     cursor = cursor.parent ?? null;
   }
   return null;
-};
-
-// A nested function usually runs on a user event, not during the render
-// pass — but two shapes DO execute while rendering: an immediately
-// invoked function (`{(() => new Date().toLocaleString())()}`) and a
-// useMemo factory (`{useMemo(() => Date.now(), [])}`).
-const executesDuringRender = (functionNode: EsTreeNode): boolean => {
-  const parent = functionNode.parent;
-  if (!isNodeOfType(parent, "CallExpression")) return false;
-  if (parent.callee === functionNode) return true;
-  return isHookCall(parent, "useMemo") && parent.arguments?.[0] === functionNode;
-};
-
-// Mounted-flag hooks (`const isClient = useClient()`, `useIsMounted()`,
-// `useHydrated()`, …) are false on the server AND on the client's first
-// (hydration) render, flipping true only in an effect — so JSX gated by
-// such a flag renders identically on both sides and cannot mismatch.
-const CLIENT_ONLY_FLAG_NAME_PATTERN =
-  /^(?:is|has|did)?_?(?:client|mounted|hydrated|browser)(?:_?(?:side|ready|only))?$/i;
-
-const referencesClientOnlyFlag = (expression: EsTreeNode): boolean => {
-  const unwrapped = stripParenExpression(expression);
-  if (isNodeOfType(unwrapped, "Identifier")) {
-    return CLIENT_ONLY_FLAG_NAME_PATTERN.test(unwrapped.name);
-  }
-  if (isNodeOfType(unwrapped, "MemberExpression")) {
-    const property = unwrapped.property;
-    return (
-      isNodeOfType(property, "Identifier") && CLIENT_ONLY_FLAG_NAME_PATTERN.test(property.name)
-    );
-  }
-  if (isNodeOfType(unwrapped, "UnaryExpression") && unwrapped.operator === "!") {
-    return referencesClientOnlyFlag(unwrapped.argument);
-  }
-  if (isNodeOfType(unwrapped, "LogicalExpression")) {
-    return referencesClientOnlyFlag(unwrapped.left) || referencesClientOnlyFlag(unwrapped.right);
-  }
-  return false;
-};
-
-// State from `useState(falsyLiteral)` is identical on the server and on the
-// client's first (hydration) render — it only flips after a post-hydration
-// state update. JSX gated behind such a flag (interaction-opened editors,
-// transient toasts) is absent from both sides of the hydration comparison.
-const isFalsyLiteral = (node: EsTreeNode | null | undefined): boolean => {
-  if (!node) return true;
-  if (isNodeOfType(node, "Literal")) return !node.value;
-  return isNodeOfType(node, "Identifier") && node.name === "undefined";
-};
-
-const isFalsyInitialStateBinding = (identifier: EsTreeNode): boolean => {
-  if (!isNodeOfType(identifier, "Identifier")) return false;
-  const binding = findVariableInitializer(identifier, identifier.name);
-  if (!binding) return false;
-  const declarator = findDeclaratorForBinding(binding.bindingIdentifier);
-  if (!declarator?.init) return false;
-  const init = stripParenExpression(declarator.init);
-  if (!isHookCall(init, "useState") || !isNodeOfType(init, "CallExpression")) return false;
-  if (!isNodeOfType(declarator.id, "ArrayPattern")) return false;
-  if (declarator.id.elements?.[0] !== binding.bindingIdentifier) return false;
-  return isFalsyLiteral(init.arguments?.[0]);
-};
-
-const referencesFalsyInitialState = (expression: EsTreeNode): boolean =>
-  flattenLogicalAndChain(stripParenExpression(expression)).some((operand) =>
-    isFalsyInitialStateBinding(stripParenExpression(operand)),
-  );
-
-const isGatedByFalsyInitialState = (node: EsTreeNode): boolean => {
-  let cursor: EsTreeNode = node;
-  let parent: EsTreeNode | null | undefined = node.parent;
-  while (parent) {
-    if (
-      isNodeOfType(parent, "LogicalExpression") &&
-      parent.operator === "&&" &&
-      parent.right === cursor &&
-      referencesFalsyInitialState(parent.left)
-    ) {
-      return true;
-    }
-    if (
-      isNodeOfType(parent, "ConditionalExpression") &&
-      parent.consequent === cursor &&
-      referencesFalsyInitialState(parent.test)
-    ) {
-      return true;
-    }
-    if (
-      isNodeOfType(parent, "IfStatement") &&
-      parent.consequent === cursor &&
-      referencesFalsyInitialState(parent.test)
-    ) {
-      return true;
-    }
-    cursor = parent;
-    parent = parent.parent ?? null;
-  }
-  return false;
 };
 
 // `© {new Date().getFullYear()}` is the universal copyright idiom — the value
@@ -218,52 +96,6 @@ const isInsideMotionTransitionAttribute = (node: EsTreeNode): boolean => {
     }
     if (isNodeOfType(cursor, "JSXElement") || isNodeOfType(cursor, "JSXFragment")) return false;
     cursor = cursor.parent ?? null;
-  }
-  return false;
-};
-
-const isInsideClientOnlyGuard = (node: EsTreeNode): boolean => {
-  let cursor: EsTreeNode = node;
-  let parent: EsTreeNode | null | undefined = node.parent;
-  while (parent) {
-    if (
-      isNodeOfType(parent, "LogicalExpression") &&
-      parent.operator === "&&" &&
-      parent.right === cursor &&
-      referencesClientOnlyFlag(parent.left)
-    ) {
-      return true;
-    }
-    if (
-      isNodeOfType(parent, "ConditionalExpression") &&
-      (parent.consequent === cursor || parent.alternate === cursor) &&
-      referencesClientOnlyFlag(parent.test)
-    ) {
-      return true;
-    }
-    if (
-      isNodeOfType(parent, "IfStatement") &&
-      parent.consequent === cursor &&
-      referencesClientOnlyFlag(parent.test)
-    ) {
-      return true;
-    }
-    cursor = parent;
-    parent = parent.parent ?? null;
-  }
-  return false;
-};
-
-const hasSuppressHydrationWarningAttribute = (openingElement: EsTreeNode | null): boolean => {
-  if (!openingElement || !isNodeOfType(openingElement, "JSXOpeningElement")) return false;
-  for (const attr of openingElement.attributes ?? []) {
-    if (
-      isNodeOfType(attr, "JSXAttribute") &&
-      isNodeOfType(attr.name, "JSXIdentifier") &&
-      attr.name.name === "suppressHydrationWarning"
-    ) {
-      return true;
-    }
   }
   return false;
 };

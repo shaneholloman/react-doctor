@@ -5,6 +5,7 @@ import {
 import type { EsTreeNode } from "../../../utils/es-tree-node.js";
 import { getCalleeName } from "../../../utils/get-callee-name.js";
 import { isNodeOfType } from "../../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../../utils/strip-paren-expression.js";
 
 export interface ServerFnChainInfo {
   isServerFnChain: boolean;
@@ -21,7 +22,7 @@ export const walkServerFnChain = (outerNode: EsTreeNode): ServerFnChainInfo => {
 
   if (!isNodeOfType(outerNode, "CallExpression")) return result;
   if (!isNodeOfType(outerNode.callee, "MemberExpression")) return result;
-  let currentNode: EsTreeNode = outerNode.callee.object;
+  let currentNode: EsTreeNode = stripParenExpression(outerNode.callee.object);
 
   while (isNodeOfType(currentNode, "CallExpression")) {
     const calleeName = getCalleeName(currentNode);
@@ -50,7 +51,7 @@ export const walkServerFnChain = (outerNode: EsTreeNode): ServerFnChainInfo => {
     }
 
     if (isNodeOfType(currentNode.callee, "MemberExpression")) {
-      currentNode = currentNode.callee.object;
+      currentNode = stripParenExpression(currentNode.callee.object);
     } else {
       break;
     }

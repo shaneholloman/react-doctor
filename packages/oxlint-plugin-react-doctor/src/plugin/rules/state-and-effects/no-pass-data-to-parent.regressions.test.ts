@@ -47,6 +47,21 @@ describe("no-pass-data-to-parent — regressions", () => {
       expect(result.diagnostics.length).toBeGreaterThan(0);
     });
 
+    it("still flags a member-form parent callback whose `props` receiver is wrapped in `as any`", () => {
+      const result = runRule(
+        noPassDataToParent,
+        `const Child = (props) => {
+          const fetchedData = useSomeAPI();
+          useEffect(() => {
+            (props as any).onLoaded(fetchedData);
+          }, [props, fetchedData]);
+          return null;
+        };`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    });
+
     it("still flags a destructured identifier-form parent callback (onChange(computed))", () => {
       const result = runRule(
         noPassDataToParent,

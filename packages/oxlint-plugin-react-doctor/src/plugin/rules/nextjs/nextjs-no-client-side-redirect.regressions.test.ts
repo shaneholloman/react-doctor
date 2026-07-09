@@ -40,6 +40,21 @@ export default function Page() {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags a router.push on mount when the `router` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      nextjsNoClientSideRedirect,
+      `"use client";
+import { useEffect } from "react";
+export default function Page() {
+  useEffect(() => { (router as any).push("/x"); }, []);
+  return null;
+}`,
+      { filename: "app/page.tsx" },
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("flags a synchronously-invoked inner function that redirects on mount", () => {
     const result = runRule(
       nextjsNoClientSideRedirect,

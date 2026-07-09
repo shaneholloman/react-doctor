@@ -19,6 +19,10 @@ export const WIDE_COMPONENT_STATEMENT_COUNT = 250;
 // When a program makes the rule fire, mutate it this many extra times and
 // re-run — a cheap feedback loop that keeps fuzzing near reporting paths.
 export const EXPLOIT_DESCENDANT_COUNT = 3;
+// Span anchors (call receivers, arrow bodies, …) rewritten per
+// verdict-preserving variant — caps the edit list on pathological programs
+// (400-wide sibling JSX) so variant construction stays O(anchors).
+export const MAX_VERDICT_VARIANT_ANCHORS = 200;
 export const MAX_CORPUS_FILES = 400;
 export const MAX_CORPUS_FILE_BYTES = 48_000;
 // Fraction of iterations that start from a corpus file (when FUZZ_CORPUS_DIR

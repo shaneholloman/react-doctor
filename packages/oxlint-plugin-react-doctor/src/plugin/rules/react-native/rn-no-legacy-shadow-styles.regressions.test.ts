@@ -119,6 +119,16 @@ describe("react-native/rn-no-legacy-shadow-styles — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still fires when the `StyleSheet` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      rnNoLegacyShadowStyles,
+      `const styles = (StyleSheet as any).create({ card: { shadowColor: "#000", shadowRadius: 4 } });`,
+      { filename: createPackageFilename({ reactNativeVersion: "0.79.5" }) },
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("still fires without a filename", () => {
     const result = runRule(rnNoLegacyShadowStyles, shadowStyleCode);
     expect(result.parseErrors).toEqual([]);

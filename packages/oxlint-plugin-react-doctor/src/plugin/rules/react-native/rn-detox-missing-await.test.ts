@@ -72,6 +72,12 @@ describe("rn-detox-missing-await", () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it("flags an un-awaited action whose element() receiver is wrapped in `as any`", () => {
+    const code = `it("x", async () => { (element(by.id("submit")) as any).tap(); });`;
+    const result = runRule(rnDetoxMissingAwait, code, e2eFile);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("does NOT flag a Jest expect(value) assertion", () => {
     const code = `it("x", () => { expect(value).toBe(3); });`;
     const result = runRule(rnDetoxMissingAwait, code, e2eFile);

@@ -5,6 +5,7 @@ import { fuzzRule } from "../src/fuzz-rule.js";
 import { generateStructuredFuzzProgram } from "../src/generate-fuzz-program.js";
 import { loadFuzzCorpus } from "../src/load-fuzz-corpus.js";
 import { createSeededRandom } from "../src/seeded-random.js";
+import { buildVerdictPreservingVariants } from "../src/verdict-preserving-variants.js";
 import { runRule } from "../../oxlint-plugin-react-doctor/src/test-utils/run-rule.js";
 import type { Rule } from "../../oxlint-plugin-react-doctor/src/plugin/utils/rule.js";
 
@@ -61,6 +62,46 @@ describe("fuzz harness oracles", () => {
     };
     const findings = fuzzRule("fuzz-smoke-crash", crashingRule, { iterations: 10, seed: 1 });
     expect(findings.some((finding) => finding.kind === "crash")).toBe(true);
+  });
+
+  // Every verdict-preserving rewrite must itself parse — a variant that
+  // breaks the program would be filtered and silently stop applying
+  // mutation pressure. Checked over generated programs (JSX, hooks,
+  // module-scope sections) rather than one hand-written sample.
+  it("builds verdict-preserving variants that all parse cleanly", () => {
+    let variantCount = 0;
+    const labels = new Set<string>();
+    for (let seedValue = 1; seedValue <= 50; seedValue += 1) {
+      const { code } = generateStructuredFuzzProgram(createSeededRandom(seedValue));
+      for (const variant of buildVerdictPreservingVariants(code, "fixture.tsx")) {
+        variantCount += 1;
+        labels.add(variant.label);
+        const result = runRule(NOOP_RULE, variant.code, { forceJsx: true });
+        expect(
+          result.parseErrors,
+          `variant "${variant.label}" broke the program:\n${variant.code}`,
+        ).toEqual([]);
+      }
+    }
+    expect(variantCount).toBeGreaterThan(0);
+    expect(labels).toContain("parenthesized call receivers");
+    expect(labels).toContain("concise arrow bodies converted to block returns");
+    expect(labels).toContain("no-op prologue statement in every function body");
+  });
+
+  it("rewrites member calls into computed spelling in the advisory tier", () => {
+    const variants = buildVerdictPreservingVariants(
+      `export const App = () => { document.write("x"); return null; };`,
+      "fixture.tsx",
+    );
+    const computed = variants.find(
+      (variant) => variant.label === "computed-member call properties",
+    );
+    expect(computed?.code).toContain(`document["write"]("x")`);
+    expect(computed?.mustPreserveVerdict).toBe(false);
+    const castReceiver = variants.find((variant) => variant.label === "as-any call receivers");
+    expect(castReceiver?.code).toContain(`(document as any).write("x")`);
+    expect(castReceiver?.mustPreserveVerdict).toBe(true);
   });
 
   it("catches a rule that keys off incidental source shape", () => {

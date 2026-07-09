@@ -8,6 +8,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 const toMethodOrderToken = (methodName: string): string =>
@@ -36,7 +37,7 @@ export const tanstackStartServerFnMethodOrder = defineRule({
           ? currentNode.callee.property.name
           : null;
         if (methodName) methodNames.unshift(methodName);
-        currentNode = currentNode.callee.object;
+        currentNode = stripParenExpression(currentNode.callee.object);
       }
 
       if (

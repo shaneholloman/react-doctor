@@ -4,6 +4,7 @@ import { skipNonProductionFiles } from "../../utils/skip-non-production-files.js
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 const MESSAGE =
   "Storing an auth token in `localStorage`/`sessionStorage` exposes it to any XSS on the page: JavaScript can read web storage and exfiltrate the token. Keep tokens in an `HttpOnly`, `Secure`, `SameSite` cookie instead.";
@@ -105,7 +106,7 @@ export const authTokenInWebStorage = defineRule({
       if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
       if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "setItem")
         return;
-      if (!isWebStorageObject(callee.object)) return;
+      if (!isWebStorageObject(stripParenExpression(callee.object))) return;
       const keyArgument = node.arguments?.[0];
       if (!keyArgument) return;
       const keyString = resolveStaticKeyString(keyArgument);

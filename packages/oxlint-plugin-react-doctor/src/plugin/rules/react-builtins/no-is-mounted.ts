@@ -1,6 +1,7 @@
 import { defineRule } from "../../utils/define-rule.js";
 import { getParentComponent } from "../../utils/get-parent-component.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 // Port of `oxc_linter::rules::react::no_is_mounted`. Flags a
@@ -18,7 +19,7 @@ export const noIsMounted = defineRule({
   create: (context) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (!isNodeOfType(node.callee, "MemberExpression")) return;
-      if (!isNodeOfType(node.callee.object, "ThisExpression")) return;
+      if (!isNodeOfType(stripParenExpression(node.callee.object), "ThisExpression")) return;
       if (
         !isNodeOfType(node.callee.property, "Identifier") ||
         node.callee.property.name !== "isMounted"

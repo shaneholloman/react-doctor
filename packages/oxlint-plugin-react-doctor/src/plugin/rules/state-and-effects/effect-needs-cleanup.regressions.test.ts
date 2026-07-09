@@ -630,3 +630,350 @@ export const DevServer = ({ app }) => {
     expect(result.diagnostics).toHaveLength(1);
   });
 });
+
+describe("effect-needs-cleanup adversarial edge cases (observers / connections / retained functions)", () => {
+  it("flags an observer registered through a nested helper with no cleanup", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Measurer = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    const attach = () => { observer.observe(el); };
+    attach();
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag cleanup via optional call `observer.disconnect?.()`", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Measurer = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+    return () => observer.disconnect?.();
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("does not flag cleanup through a captured alias of the observer", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Measurer = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+    const captured = observer;
+    return () => captured.disconnect();
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags returning the observer handle itself as cleanup (disconnects nothing)", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Measurer = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+    return observer;
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a WebSocket opened and closed synchronously in the same effect body", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const PingOnce = ({ url }) => {
+  useEffect(() => {
+    const socket = new WebSocket(url);
+    socket.send("ping");
+    socket.close();
+  }, [url]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("does not flag an observer disconnected at statement level after a one-shot measure", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const MeasureOnce = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+    measure();
+    observer.disconnect();
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("still flags a release-then-register pair — the trailing registration leaks", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Retarget = ({ emitter, handler }) => {
+  useEffect(() => {
+    emitter.off("change", handler);
+    emitter.on("change", handler);
+  }, [emitter, handler]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still flags debounce-style clearTimeout-then-setTimeout without a cleanup return", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect, useRef } from "react";
+export const Debounced = ({ value }) => {
+  const timeoutRef = useRef(null);
+  useEffect(() => {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => commit(value), 300);
+  }, [value]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a nested-callback release — only statement-level releases neutralize", () => {
+    // `socket.onclose = () => socket.close()` runs later, if ever — it must
+    // NOT count as a synchronous release.
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Feed = ({ url }) => {
+  useEffect(() => {
+    const socket = new WebSocket(url);
+    socket.onerror = () => socket.close();
+  }, [url]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a socket stored on a ref whose close lives in a different effect", () => {
+    // Cross-effect cleanup is not honored: the constructing effect re-runs
+    // on dep change and leaks the previous socket — cleanup must be returned
+    // from the effect that opened the connection.
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect, useRef } from "react";
+export const Feed = ({ url }) => {
+  const socketRef = useRef(null);
+  useEffect(() => {
+    socketRef.current = new WebSocket(url);
+  }, [url]);
+  useEffect(() => {
+    return () => socketRef.current?.close();
+  }, []);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag conditional construction with an unconditional optional-chained cleanup", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const MaybeLive = ({ live, url }) => {
+  useEffect(() => {
+    let socket;
+    if (live) { socket = new WebSocket(url); }
+    return () => socket?.close();
+  }, [live, url]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags an observer created and registered inside an IIFE in the effect", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const DomWatcher = () => {
+  useEffect(() => {
+    (() => {
+      const observer = new MutationObserver(() => update());
+      observer.observe(document.body, { childList: true });
+    })();
+  }, []);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not crash and still flags `new EventSource(url, { signal })` (no such option) without cleanup", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const ServerEvents = ({ url, signal }) => {
+  useEffect(() => {
+    const source = new EventSource(url, { signal });
+    source.onmessage = (event) => update(event.data);
+  }, [url, signal]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not crash on a computed connection class `new (getSocketClass())(url)`", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Dynamic = ({ url }) => {
+  useEffect(() => {
+    const socket = new (getSocketClass())(url);
+    socket.onmessage = update;
+  }, [url]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('does not flag a computed `observer["observe"](el)` registration (dynamic name — abstain)', () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useEffect } from "react";
+export const Computed = ({ el }) => {
+  useEffect(() => {
+    const observer = new ResizeObserver(() => update());
+    observer["observe"](el);
+  }, [el]);
+  return null;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("does not flag a retained function whose setInterval id flows into a setter", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useState } from "react";
+export const Poller = () => {
+  const [timerId, setTimerId] = useState(null);
+  const start = () => {
+    setTimerId(setInterval(() => tick(), 1000));
+  };
+  return <button onClick={start}>go</button>;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("does not flag a concise-body interval factory — the id escapes to the caller", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback } from "react";
+export const Poller = () => {
+  const schedule = useCallback(() => setInterval(() => poll(), 1000), []);
+  return <button onClick={() => clearInterval(schedule())}>toggle</button>;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags `void setInterval(...)` in a retained handler — void is an explicit discard", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `export const Ticker = () => {
+  const start = () => {
+    void setInterval(() => tick(), 1000);
+  };
+  return <button onClick={start}>tick</button>;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a component-scope function that leaks even when nothing references it yet", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `export const Idle = () => {
+  function startPolling() {
+    setInterval(() => poll(), 1000);
+  }
+  return <div />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it('does not flag a `{ "once": true }` listener registered with a string-literal key', () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `export const OneShot = () => {
+  const arm = () => {
+    window.addEventListener("pointerup", () => finish(), { "once": true });
+  };
+  return <button onPointerDown={arm}>press</button>;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags a literal `{ once: false }` listener — it does not self-release", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `export const NotOnce = () => {
+  const arm = () => {
+    window.addEventListener("pointerup", () => finish(), { once: false });
+  };
+  return <button onPointerDown={arm}>press</button>;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+});

@@ -3,6 +3,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { isNoOpStatement } from "../../utils/is-no-op-statement.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 export const queryNoVoidQueryFn = defineRule({
@@ -48,7 +49,9 @@ export const queryNoVoidQueryFn = defineRule({
         const body = queryFnValue.body;
         if (!isNodeOfType(body, "BlockStatement")) return;
 
-        const statements = body.body ?? [];
+        const statements = (body.body ?? []).filter(
+          (statement: EsTreeNode) => !isNoOpStatement(statement),
+        );
         if (statements.length === 0) {
           context.report({
             node: queryFnProperty,

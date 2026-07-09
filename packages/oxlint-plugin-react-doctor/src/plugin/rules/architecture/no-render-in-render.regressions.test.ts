@@ -248,4 +248,81 @@ describe("architecture/no-render-in-render — regressions", () => {
     );
     expect(result.diagnostics).toEqual([]);
   });
+
+  // Fuzz edge-case audit 2026-07: hook detection must match the shapes
+  // React hooks are actually called in — bare (`useState()`) or through a
+  // PascalCase namespace (`React.useState()`). Member calls on lowercase
+  // instances are library idioms (`i18n.use(initReactI18next)`,
+  // `app.use(plugin)`), not hooks.
+  it("does not flag a helper whose only `use` call is a lowercase-instance member call", () => {
+    const result = run(
+      `const renderLocalizedBadge = (label) => {
+        i18n.use(initReactI18next);
+        return <span>{i18n.t(label)}</span>;
+      };
+      export function StatusBar({ label }) {
+        return <footer>{renderLocalizedBadge(label)}</footer>;
+      }`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags a helper calling hooks through the React namespace", () => {
+    const result = run(
+      `const renderRow = () => {
+        const [open] = React.useState(false);
+        return <b>{String(open)}</b>;
+      };
+      function Panel() { return <div>{renderRow()}</div>; }`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags an optional inline call (renderRow?.()) of a hook-calling helper", () => {
+    const result = run(
+      `const renderRow = () => {
+        const [open] = useState(false);
+        return <b>{String(open)}</b>;
+      };
+      function Panel() { return <div>{renderRow?.()}</div>; }`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a hook-calling function declaration hoisted from below the component", () => {
+    const result = run(
+      `function Panel() { return <div>{renderLate()}</div>; }
+      function renderLate() {
+        const [open] = useState(false);
+        return <b>{String(open)}</b>;
+      }`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  // Direct-only contract: the resolved helper's OWN body must call hooks.
+  // A helper that reaches hooks only transitively (helper → other fn →
+  // hook) stays exempt — same-file transitive resolution is out of scope.
+  it("does not flag a helper that reaches hooks only transitively", () => {
+    const result = run(
+      `const readTheme = () => useContext(ThemeContext);
+      const renderRow = () => {
+        const theme = readTheme();
+        return <div className={theme} />;
+      };
+      function Panel() { return <div>{renderRow()}</div>; }`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag an object-literal render method destructured and called bare", () => {
+    const result = run(
+      `const helpers = { renderItem() { const [x] = useState(0); return <li>{x}</li>; } };
+      function List() {
+        const { renderItem } = helpers;
+        return <ul>{renderItem()}</ul>;
+      }`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

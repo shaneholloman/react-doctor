@@ -23,4 +23,13 @@ describe("react-builtins/no-is-mounted — regressions", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
+
+  it("still flags isMounted when the `this` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noIsMounted,
+      `class Hello extends React.Component { method() { if (!(this as any).isMounted()) return; } render() { return <div />; } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
 });

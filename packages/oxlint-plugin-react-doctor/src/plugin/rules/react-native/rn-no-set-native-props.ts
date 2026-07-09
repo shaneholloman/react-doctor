@@ -1,6 +1,7 @@
 import { defineRule } from "../../utils/define-rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
@@ -34,7 +35,7 @@ export const rnNoSetNativeProps = defineRule({
       if (!isStaticMemberNamed(callee, "setNativeProps")) return;
       if (!isNodeOfType(callee, "MemberExpression")) return;
       // Receiver must be a `*.current` access — the React ref shape.
-      if (!isStaticMemberNamed(callee.object, "current")) return;
+      if (!isStaticMemberNamed(stripParenExpression(callee.object), "current")) return;
       context.report({
         node,
         message:

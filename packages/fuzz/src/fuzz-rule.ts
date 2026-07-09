@@ -13,13 +13,14 @@ import {
 } from "./constants.js";
 import { buildAstEquivalentFuzzVariants } from "./ast-equivalent-fuzz-variants.js";
 import { buildEquivalentFuzzVariants } from "./equivalent-fuzz-variants.js";
+import { buildVerdictPreservingVariants } from "./verdict-preserving-variants.js";
 import { generateStructuredFuzzProgram } from "./generate-fuzz-program.js";
 import type { FuzzCorpusEntry } from "./load-fuzz-corpus.js";
 import { crossoverFuzzPrograms, mutateFuzzProgram } from "./mutate-fuzz-program.js";
 import { createSeededRandom } from "./seeded-random.js";
 import { FUZZ_FILENAME_POOL } from "./snippet-pools.js";
 
-export type FuzzFindingKind = "crash" | "slow" | "invariant-violation";
+export type FuzzFindingKind = "crash" | "slow" | "invariant-violation" | "verdict-drop";
 
 export interface FuzzFinding {
   ruleId: string;
@@ -219,6 +220,44 @@ export const fuzzRuleWithStats = (
     }
 
     if (!options.checkInvariants || isScanRule || didApplyNoise) continue;
+
+    // Verdict-preserving mutation oracle ("x + 1 = 2" → "x + 1 + 1 - 1 = 2"):
+    // when the rule FIRED, semantics-preserving shape rewrites (extra
+    // parens, cast wrappers, concise→block arrows, no-op prologues) must
+    // not silence it entirely — a drop means detection keys on incidental
+    // token shape, the classic false-negative evasion class. Signature
+    // CHANGES are expected here (messages may embed source text), so only
+    // full disappearance is a finding.
+    if (didFire) {
+      for (const variant of buildVerdictPreservingVariants(code, filename)) {
+        if (!variant.mustPreserveVerdict) continue;
+        const variantOutcome = runRuleOnCode(rule, variant.code, filename);
+        if (variantOutcome.crashDetail !== undefined) {
+          findings.push({
+            ruleId,
+            kind: "crash",
+            seed: iterationSeed,
+            iteration,
+            detail: variantOutcome.crashDetail,
+            code: variant.code,
+            variantLabel: variant.label,
+          });
+          continue;
+        }
+        if ((variantOutcome.diagnosticSignature?.length ?? 0) === 0) {
+          findings.push({
+            ruleId,
+            kind: "verdict-drop",
+            seed: iterationSeed,
+            iteration,
+            detail: `diagnostics disappeared under verdict-preserving rewrite "${variant.label}" (base had ${outcome.diagnosticSignature?.length ?? 0})`,
+            code: variant.code,
+            variantLabel: variant.label,
+          });
+        }
+      }
+    }
+
     for (const variant of [
       ...buildEquivalentFuzzVariants(code, sections),
       ...buildAstEquivalentFuzzVariants(code, filename),

@@ -137,6 +137,19 @@ const collectCleanupBindings = (effectCallback: EsTreeNode): CleanupBindings => 
   }
   if (!isNodeOfType(effectCallback.body, "BlockStatement")) return bindings;
 
+  // The receiver of a registration (`observer.observe(el)`, `emitter.on(...)`)
+  // is a resource handle, not a disposer — returning it from the effect
+  // releases nothing. Recording it as a subscription name both blocks the
+  // opaque-identifier-return escape and lets generic release verbs
+  // (`observer.stop()`) count as cleanup on that receiver.
+  walkAst(effectCallback.body, (child: EsTreeNode) => {
+    if (!isSubscribeOrObserveCall(child)) return;
+    if (!isNodeOfType(child, "CallExpression")) return;
+    if (!isNodeOfType(child.callee, "MemberExpression")) return;
+    if (!isNodeOfType(child.callee.object, "Identifier")) return;
+    bindings.subscriptionNames.add(child.callee.object.name);
+  });
+
   walkInsideStatementBlocks(effectCallback.body, (child: EsTreeNode) => {
     if (!isNodeOfType(child, "VariableDeclaration")) return;
     for (const declarator of child.declarations ?? []) {
@@ -211,6 +224,40 @@ const collectCleanupBindings = (effectCallback: EsTreeNode): CleanupBindings => 
 const getRangeStart = (node: EsTreeNode): number | null => {
   const rangeStart = node.range?.[0];
   return typeof rangeStart === "number" ? rangeStart : null;
+};
+
+// A resource registered and then released SYNCHRONOUSLY later in the same
+// effect body (`const socket = new WebSocket(url); …; socket.close();`,
+// `observer.observe(el); measure(); observer.disconnect();`) never outlives
+// the effect run, so it needs no cleanup return. Only statement-level
+// releases count (a `.close()` inside a nested callback runs later, if
+// ever), and only releases positioned AFTER the registration — a
+// release-then-register pair (`emitter.off(...); emitter.on(...)`,
+// debounce-style `clearTimeout(...); setTimeout(...)`) still leaks the
+// trailing registration.
+const removeSynchronouslyReleasedUsages = (
+  callback: EsTreeNode,
+  usages: SubscribeLikeUsage[],
+): SubscribeLikeUsage[] => {
+  if (
+    !isNodeOfType(callback, "ArrowFunctionExpression") &&
+    !isNodeOfType(callback, "FunctionExpression")
+  ) {
+    return usages;
+  }
+  if (!isNodeOfType(callback.body, "BlockStatement")) return usages;
+  const releaseStarts: number[] = [];
+  walkInsideStatementBlocks(callback.body, (child: EsTreeNode) => {
+    if (!isReleaseLikeCall(child, EMPTY_NAME_SET, EMPTY_NAME_SET)) return;
+    const releaseStart = getRangeStart(child);
+    if (releaseStart !== null) releaseStarts.push(releaseStart);
+  });
+  if (releaseStarts.length === 0) return usages;
+  return usages.filter((usage) => {
+    const usageStart = getRangeStart(usage.node);
+    if (usageStart === null) return true;
+    return !releaseStarts.some((releaseStart) => releaseStart > usageStart);
+  });
 };
 
 const cleanupReturnRunsAfterUsage = (
@@ -293,21 +340,26 @@ const EMPTY_NAME_SET: ReadonlySet<string> = new Set();
 // `addEventListener(name, handler, { once: true })` self-releases and
 // `{ signal }` delegates release to an AbortController — neither leaks.
 // `once` must be literally `true`: `{ once: false }` — or a value that
-// may be false — keeps the listener registered.
+// may be false — keeps the listener registered. The key may be spelled
+// as an identifier or a string literal (`{ "once": true }`).
+const isSelfReleasingListenerOptionProperty = (property: EsTreeNode): boolean => {
+  if (!isNodeOfType(property, "Property")) return false;
+  const keyName = isNodeOfType(property.key, "Identifier")
+    ? property.key.name
+    : isNodeOfType(property.key, "Literal")
+      ? property.key.value
+      : null;
+  if (keyName === "signal") return true;
+  if (keyName !== "once") return false;
+  return isNodeOfType(property.value, "Literal") && property.value.value === true;
+};
+
 const hasSelfReleasingListenerOptions = (node: EsTreeNode): boolean =>
   isNodeOfType(node, "CallExpression") &&
   (node.arguments ?? []).some(
     (argument) =>
       isNodeOfType(argument, "ObjectExpression") &&
-      (argument.properties ?? []).some(
-        (property) =>
-          isNodeOfType(property, "Property") &&
-          isNodeOfType(property.key, "Identifier") &&
-          (property.key.name === "signal" ||
-            (property.key.name === "once" &&
-              isNodeOfType(property.value, "Literal") &&
-              property.value.value === true)),
-      ),
+      (argument.properties ?? []).some(isSelfReleasingListenerOptionProperty),
   );
 
 // A release call only counts against a leak when its verb can plausibly
@@ -410,10 +462,18 @@ const findRetainedFunctionLeak = (retainedFunction: EsTreeNode): SubscribeLikeUs
   const body = retainedFunction.body;
   if (!body) return null;
 
+  // A registration that IS the function's concise return value escapes to
+  // the caller (`const schedule = () => setInterval(poll, 1000)` is a
+  // factory whose caller owns the id) — same as the block-body
+  // `return setInterval(...)`, which `isResultDiscardedCall` already treats
+  // as consumed.
+  const conciseReturnValue = isNodeOfType(body, "BlockStatement") ? null : body;
+
   let leak: SubscribeLikeUsage | null = null;
   walkAst(body, (child: EsTreeNode) => {
     if (leak !== null) return false;
     if (isFunctionLike(child)) return false;
+    if (child === conciseReturnValue && isNodeOfType(child, "CallExpression")) return;
 
     if (
       isSocketConstruction(child) &&
@@ -503,7 +563,10 @@ export const effectNeedsCleanup = defineRule({
         const callback = getEffectCallback(node);
         if (!callback) return;
 
-        const usages = findSubscribeLikeUsages(callback);
+        const usages = removeSynchronouslyReleasedUsages(
+          callback,
+          findSubscribeLikeUsages(callback),
+        );
         if (usages.length === 0) return;
 
         if (effectHasCleanupReturn(callback, usages)) return;

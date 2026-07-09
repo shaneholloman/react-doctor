@@ -58,6 +58,16 @@ const swap = () => document.startViewTransition(() => {});`,
     expect(result.diagnostics).toHaveLength(1);
   });
 
+  it("still flags when the `document` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noDocumentStartViewTransition,
+      `import { ViewTransition } from 'react';
+const swap = () => (document as any).startViewTransition(() => {});`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("exempts a locally-bound `document` (parameter shadows the global) even with the react import", () => {
     const result = runRule(
       noDocumentStartViewTransition,

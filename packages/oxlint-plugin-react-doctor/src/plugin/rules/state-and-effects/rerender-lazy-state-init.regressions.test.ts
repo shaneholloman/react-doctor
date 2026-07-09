@@ -206,4 +206,73 @@ describe("rerender-lazy-state-init — regressions", () => {
       expect(result.diagnostics).toEqual([]);
     });
   });
+
+  describe("fuzz sweep: trivial-constructor exemption is zero-argument + identifier-callee only", () => {
+    it("flags a trivial-name construction with runtime arguments", () => {
+      const result = runRule(
+        rerenderLazyStateInit,
+        `function C() {
+          const [byKey, setByKey] = useState(new Map([["a", 1]]));
+          return null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    });
+
+    it("flags `new Date(timestamp)` while `new Date()` stays exempt", () => {
+      const withArgument = runRule(
+        rerenderLazyStateInit,
+        `function C({ timestamp }) {
+          const [startedAt] = useState(new Date(timestamp));
+          return null;
+        }`,
+      );
+      const zeroArgument = runRule(
+        rerenderLazyStateInit,
+        `function C() {
+          const [startedAt] = useState(new Date());
+          return null;
+        }`,
+      );
+      expect(withArgument.diagnostics).toHaveLength(1);
+      expect(zeroArgument.diagnostics).toEqual([]);
+    });
+
+    it("flags a member-expression callee even when the property matches a trivial name", () => {
+      const result = runRule(
+        rerenderLazyStateInit,
+        `function C() {
+          const [byKey] = useState(new ns.Map());
+          return null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    });
+
+    it("stays silent when only TYPE arguments are passed", () => {
+      const result = runRule(
+        rerenderLazyStateInit,
+        `function C() {
+          const [byKey] = useState(new Map<string, number>());
+          return null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it("flags a TS-wrapped expensive call (wrapper transparency)", () => {
+      const result = runRule(
+        rerenderLazyStateInit,
+        `function C({ raw }) {
+          const [rows, setRows] = useState(buildRows(raw) as Rows);
+          return null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    });
+  });
 });

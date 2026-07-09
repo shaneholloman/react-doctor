@@ -435,6 +435,70 @@ describe("react-builtins/rules-of-hooks — regressions: same-named non-React us
     `);
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
+
+  // fuzz edge-case wave: the polyfill origin spelled as a member access —
+  // `FloatingUI.useEffectEvent(...)` through a namespace imported from a
+  // non-React package carries stable-callback semantics too.
+  it("does not flag a namespace-imported polyfill (FloatingUI.useEffectEvent) result passed as a prop", () => {
+    const result = runTsx(`
+      import * as FloatingUI from "@floating-ui/react/utils";
+      const MyComponent = ({ onDone }) => {
+        const handleChange = FloatingUI.useEffectEvent(() => onDone());
+        return <Child onChange={handleChange} />;
+      };
+    `);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a namespace-imported polyfill call passed inline as a prop", () => {
+    const result = runTsx(`
+      import * as FloatingUI from "@floating-ui/react/utils";
+      const MyComponent = ({ onDone }) => {
+        return <Child onChange={FloatingUI.useEffectEvent(() => onDone())} />;
+      };
+    `);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags React.useEffectEvent through the React namespace when passed around", () => {
+    const result = runTsx(`
+      import * as React from "react";
+      const MyComponent = ({ onDone }) => {
+        const handleChange = React.useEffectEvent(() => onDone());
+        return <Child onChange={handleChange} />;
+      };
+    `);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("does not flag a hoisted function-declaration polyfill defined BELOW the component", () => {
+    const result = runTsx(`
+      import { useCallback, useRef } from "react";
+      const MyComponent = ({ onDone }) => {
+        const handleChange = useEffectEvent(() => onDone());
+        return <Child onChange={handleChange} />;
+      };
+      function useEffectEvent(callback) {
+        const ref = useRef(callback);
+        ref.current = callback;
+        return useCallback((...args) => ref.current(...args), []);
+      }
+    `);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a component-local shadow even when React's useEffectEvent is imported", () => {
+    const result = runTsx(`
+      import { useEffectEvent } from "react";
+      import { makePolyfill } from "./make-polyfill";
+      const MyComponent = ({ onDone }) => {
+        const useEffectEvent = makePolyfill();
+        const handleChange = useEffectEvent(() => onDone());
+        return <Child onChange={handleChange} />;
+      };
+    `);
+    expect(result.diagnostics).toEqual([]);
+  });
 });
 
 describe("react-builtins/rules-of-hooks — regressions: underscore-prefixed component bindings", () => {

@@ -34,6 +34,7 @@ import {
   isWholePropsObjectReference,
 } from "./utils/effect/react.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 // 1:1 port of upstream `src/rules/no-pass-data-to-parent.js`, narrowed to
 // DIRECT parent-callback call sites. The verification run showed the
@@ -356,7 +357,7 @@ export const noPassDataToParent = defineRule({
           }
         } else if (
           isNodeOfType(calleeNode, "MemberExpression") &&
-          unwrapChainExpression(calleeNode.object as EsTreeNode) === identifier
+          stripParenExpression(calleeNode.object) === identifier
         ) {
           // Member form: `props.onLoaded(data)` — only the whole props
           // object of a COMPONENT qualifies. A positional custom-hook
@@ -382,7 +383,7 @@ export const noPassDataToParent = defineRule({
           methodName &&
           STRING_READ_METHOD_NAMES.has(methodName) &&
           isNodeOfType(calleeNode, "MemberExpression") &&
-          calleeNode.object === (ref.identifier as unknown as typeof calleeNode.object) &&
+          stripParenExpression(calleeNode.object) === (ref.identifier as unknown as EsTreeNode) &&
           isWholePropsObjectReference(analysis, ref),
         );
         if (

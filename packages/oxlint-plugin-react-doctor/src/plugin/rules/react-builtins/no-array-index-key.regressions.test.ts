@@ -43,6 +43,15 @@ describe("react-builtins/no-array-index-key — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags cloneElement when the `.map` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noArrayIndexKey,
+      `const rows = (things as any).map((thing, index) => React.cloneElement(thing, { key: index }));`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("stays silent on cloneElement over a positionally stable receiver", () => {
     const result = runRule(
       noArrayIndexKey,

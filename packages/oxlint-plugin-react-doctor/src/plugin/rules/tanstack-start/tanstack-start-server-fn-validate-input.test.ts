@@ -14,6 +14,16 @@ describe("tanstack-start/server-fn-validate-input", () => {
     expect(result.diagnostics[0].message).toContain("validator()");
   });
 
+  it("still flags when the createServerFn() chain receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      tanstackStartServerFnValidateInput,
+      `(createServerFn({ method: "POST" }) as any).handler(async ({ data }) => data);`,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("does not flag a handler guarded by .validator()", () => {
     const result = runRule(
       tanstackStartServerFnValidateInput,

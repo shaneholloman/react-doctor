@@ -1,7 +1,9 @@
+import { MUTATING_ARRAY_METHODS } from "../../constants/js.js";
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isImportedFromModule } from "../../utils/find-import-source-for-name.js";
+import { findTransparentExpressionRoot } from "../../utils/find-transparent-expression-root.js";
 import { isCanonicalReactNamespaceName } from "../../utils/is-canonical-react-namespace-name.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
@@ -77,9 +79,33 @@ const isTrivialContainerLiteral = (node: EsTreeNode | null): boolean => {
 
 // True when the reference can never leak the container's identity —
 // it's only read THROUGH (`value.length`, `value.map(...)`, `value[0]`).
+// TS wrappers (`value!.length`, `(value as string[]).length`) are
+// transparent. A mutation through the member (`value.push(x)`,
+// `value[0] = x`, `delete value.a`, `value.count++`) is NOT a plain
+// read: it makes the memo's cross-render persistence observable, so
+// rebuilding the literal inline would change behavior.
 const isNonEscapingRead = (identifier: EsTreeNode): boolean => {
-  const parentNode = identifier.parent;
-  return isNodeOfType(parentNode, "MemberExpression") && parentNode.object === identifier;
+  const readRoot = findTransparentExpressionRoot(identifier);
+  const memberNode = readRoot.parent;
+  if (!isNodeOfType(memberNode, "MemberExpression") || memberNode.object !== readRoot) {
+    return false;
+  }
+  const memberUse = findTransparentExpressionRoot(memberNode);
+  const memberUseParent = memberUse.parent;
+  if (isNodeOfType(memberUseParent, "AssignmentExpression") && memberUseParent.left === memberUse) {
+    return false;
+  }
+  if (isNodeOfType(memberUseParent, "UpdateExpression")) return false;
+  if (isNodeOfType(memberUseParent, "UnaryExpression") && memberUseParent.operator === "delete") {
+    return false;
+  }
+  const isMutatingMethodCall =
+    isNodeOfType(memberUseParent, "CallExpression") &&
+    memberUseParent.callee === memberUse &&
+    !memberNode.computed &&
+    isNodeOfType(memberNode.property, "Identifier") &&
+    MUTATING_ARRAY_METHODS.has(memberNode.property.name);
+  return !isMutatingMethodCall;
 };
 
 // Decide whether the memoized container's referential identity is ever
@@ -94,9 +120,10 @@ const isMemoIdentityUnused = (
   memoCallNode: EsTreeNodeOfType<"CallExpression">,
   scopes: ScopeAnalysis,
 ): boolean => {
-  const parentNode = memoCallNode.parent;
+  const memoUsageRoot = findTransparentExpressionRoot(memoCallNode);
+  const parentNode = memoUsageRoot.parent;
   if (isNodeOfType(parentNode, "ExpressionStatement")) return true;
-  if (!isNodeOfType(parentNode, "VariableDeclarator") || parentNode.init !== memoCallNode) {
+  if (!isNodeOfType(parentNode, "VariableDeclarator") || parentNode.init !== memoUsageRoot) {
     return false;
   }
   const bindingTarget = parentNode.id;

@@ -265,6 +265,16 @@ describe("performance/rendering-hydration-mismatch-time — regressions", () => 
     });
   });
 
+  describe("verdict-preserving receiver wrappers", () => {
+    it("flags Date.now() through an as-any cast receiver", () => {
+      expectFail(`export const Stamp = () => <time>{(Date as any).now()}</time>;`);
+    });
+
+    it("flags Math.random() through a non-null-asserted receiver", () => {
+      expectFail(`export const Roll = () => <span>{(Math!).random()}</span>;`);
+    });
+  });
+
   describe("React Native packages", () => {
     let temporaryDirectory = "";
 

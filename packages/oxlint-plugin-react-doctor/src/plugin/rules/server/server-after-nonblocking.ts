@@ -4,6 +4,7 @@ import { hasUseServerDirective } from "../../utils/has-use-server-directive.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 // HACK: a (object, method) pair counts as "deferrable side effect" when
@@ -76,9 +77,8 @@ export const serverAfterNonblocking = defineRule({
         if (!isNodeOfType(node.callee, "MemberExpression")) return;
         if (!isNodeOfType(node.callee.property, "Identifier")) return;
 
-        const objectName = isNodeOfType(node.callee.object, "Identifier")
-          ? node.callee.object.name
-          : null;
+        const receiver = stripParenExpression(node.callee.object);
+        const objectName = isNodeOfType(receiver, "Identifier") ? receiver.name : null;
         if (!objectName) return;
 
         const methodName = node.callee.property.name;

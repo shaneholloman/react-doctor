@@ -223,4 +223,23 @@ const M = ({ children }) => <div role={modalRole}>{children}</div>;`,
     );
     expect(result.diagnostics).toEqual([]);
   });
+
+  it("flags a nested ternary whose branches are all dialog roles", () => {
+    const result = runRule(
+      preferHtmlDialog,
+      `const M = ({ a, b, children }) => (
+        <div role={a ? "dialog" : b ? "alertdialog" : "dialog"}>{children}</div>
+      );`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a role bound via a destructuring default (source may override)", () => {
+    const result = runRule(
+      preferHtmlDialog,
+      `const { role = "dialog" } = config;
+const M = ({ children }) => <div role={role}>{children}</div>;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

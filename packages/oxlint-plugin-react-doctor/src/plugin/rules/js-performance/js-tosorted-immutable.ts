@@ -8,6 +8,7 @@ import { isFunctionLike } from "../../utils/is-function-like.js";
 import { isMemberProperty } from "../../utils/is-member-property.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { RuleContext } from "../../utils/rule-context.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
 
 // Method calls whose result is a *brand new* array or an iterator with
@@ -108,7 +109,7 @@ export const jsTosortedImmutable = defineRule({
   create: (context: RuleContext) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (!isMemberProperty(node.callee, "sort")) return;
-      const receiver = node.callee.object;
+      const receiver = stripParenExpression(node.callee.object);
       if (
         isNodeOfType(receiver, "ArrayExpression") &&
         receiver.elements?.length === 1 &&

@@ -1,12 +1,17 @@
 import { EFFECT_HOOK_NAMES, SUBSCRIPTION_METHOD_NAMES } from "../../constants/react.js";
 import { areExpressionsStructurallyEqual } from "../../utils/are-expressions-structurally-equal.js";
 import { defineRule } from "../../utils/define-rule.js";
+import { findProgramRoot } from "../../utils/find-program-root.js";
+import { findVariableInitializer } from "../../utils/find-variable-initializer.js";
 import { getCallbackStatements } from "../../utils/get-callback-statements.js";
 import { getEffectCallback } from "../../utils/get-effect-callback.js";
 import { isComponentAssignment } from "../../utils/is-component-assignment.js";
+import { isFunctionLike } from "../../utils/is-function-like.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
+import { isReactHookName } from "../../utils/is-react-hook-name.js";
 import { isSetterIdentifier } from "../../utils/is-setter-identifier.js";
 import { isUppercaseName } from "../../utils/is-uppercase-name.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
@@ -127,15 +132,35 @@ const getSubscriptionHandlerArgument = (
   return null;
 };
 
+// `useState(false)` + a handler calling `setX(false)` matches structurally,
+// but a bare literal is not a store snapshot — it's a UI-state reset on a
+// browser event (bfcache restore, window focus). Only expressions that
+// actually read something (call, member, identifier) count as snapshots.
+const isTrivialLiteralExpression = (expression: EsTreeNode): boolean => {
+  if (isNodeOfType(expression, "Literal")) return true;
+  if (isNodeOfType(expression, "Identifier")) return expression.name === "undefined";
+  if (isNodeOfType(expression, "UnaryExpression") && expression.operator === "-") {
+    return isNodeOfType(expression.argument, "Literal");
+  }
+  if (isNodeOfType(expression, "TemplateLiteral")) {
+    return (expression.expressions?.length ?? 0) === 0;
+  }
+  return false;
+};
+
 const getSingleSetterCallFromHandler = (
   handler: EsTreeNode,
 ): { setterName: string; setterArgument: EsTreeNode } | null => {
   const handlerStatements = getCallbackStatements(handler);
   if (handlerStatements.length !== 1) return null;
   const onlyStatement = handlerStatements[0];
-  const expression = isNodeOfType(onlyStatement, "ExpressionStatement")
-    ? onlyStatement.expression
-    : onlyStatement;
+  // `() => setX(v)`, `() => { setX(v); }`, and `() => { return setX(v); }`
+  // are the same handler — unwrap statement/return wrappers alike.
+  let expression: EsTreeNode | null | undefined = onlyStatement;
+  if (isNodeOfType(onlyStatement, "ExpressionStatement")) expression = onlyStatement.expression;
+  if (isNodeOfType(onlyStatement, "ReturnStatement")) expression = onlyStatement.argument;
+  if (!expression) return null;
+  expression = stripParenExpression(expression);
   if (!isNodeOfType(expression, "CallExpression")) return null;
   if (!isNodeOfType(expression.callee, "Identifier")) return null;
   if (!isSetterIdentifier(expression.callee.name)) return null;
@@ -144,6 +169,172 @@ const getSingleSetterCallFromHandler = (
     setterName: expression.callee.name,
     setterArgument: expression.arguments[0],
   };
+};
+
+// ————— Hand-rolled module-scope store (the RD-FN-061 shape) —————
+//
+//   let sharedState = initial;                     (1) mutable module-scope snapshot
+//   const listeners = new Set();                   (2) module-scope listener registry
+//   const subscribe = (l) => { listeners.add(l); … } (3) registers its parameter
+//   const [s, setS] = useState(sharedState);       (4) snapshot read at render
+//   useEffect(() => subscribe(setS), []);          (5) subscription one tick later
+//
+// Publishes fired between (4) and (5) are lost, and two components reading
+// the shared binding at different points of one concurrent render can tear.
+// The five-vertex match keeps this as FP-proof as the member-call path
+// above: a module `const` config value as initial state (no vertex 1), an
+// imported subscribe function (no vertex 3), or a non-empty dependency
+// array all stay quiet.
+interface ModuleScopeStoreIndex {
+  readonly mutableBindingNames: Set<string>;
+  readonly subscribeFunctionNames: Set<string>;
+}
+
+const isListenerCollectionInitializer = (init: EsTreeNode | null | undefined): boolean => {
+  if (!init) return false;
+  if (isNodeOfType(init, "ArrayExpression")) return true;
+  return (
+    isNodeOfType(init, "NewExpression") &&
+    isNodeOfType(init.callee, "Identifier") &&
+    init.callee.name === "Set"
+  );
+};
+
+const functionRegistersParameterIntoCollection = (
+  functionNode: EsTreeNode,
+  listenerCollectionNames: Set<string>,
+): boolean => {
+  if (!isFunctionLike(functionNode)) return false;
+  const firstParam = functionNode.params?.[0];
+  if (!isNodeOfType(firstParam, "Identifier")) return false;
+  const listenerParamName = firstParam.name;
+  let registersListener = false;
+  walkAst(functionNode.body, (child: EsTreeNode) => {
+    if (registersListener) return false;
+    if (!isNodeOfType(child, "CallExpression")) return;
+    if (!isNodeOfType(child.callee, "MemberExpression")) return;
+    if (!isNodeOfType(child.callee.object, "Identifier")) return;
+    if (!listenerCollectionNames.has(child.callee.object.name)) return;
+    if (!isNodeOfType(child.callee.property, "Identifier")) return;
+    if (child.callee.property.name !== "add" && child.callee.property.name !== "push") return;
+    const registeredArgument = child.arguments?.[0];
+    if (
+      isNodeOfType(registeredArgument, "Identifier") &&
+      registeredArgument.name === listenerParamName
+    ) {
+      registersListener = true;
+    }
+  });
+  return registersListener;
+};
+
+const buildModuleScopeStoreIndex = (programRoot: EsTreeNode): ModuleScopeStoreIndex => {
+  const mutableBindingNames = new Set<string>();
+  const listenerCollectionNames = new Set<string>();
+  const moduleFunctionsByName = new Map<string, EsTreeNode>();
+  if (!isNodeOfType(programRoot, "Program")) {
+    return { mutableBindingNames, subscribeFunctionNames: new Set() };
+  }
+  for (const statement of programRoot.body ?? []) {
+    const unwrapped =
+      isNodeOfType(statement, "ExportNamedDeclaration") && statement.declaration
+        ? statement.declaration
+        : statement;
+    if (isNodeOfType(unwrapped, "FunctionDeclaration") && unwrapped.id) {
+      moduleFunctionsByName.set(unwrapped.id.name, unwrapped);
+      continue;
+    }
+    if (!isNodeOfType(unwrapped, "VariableDeclaration")) continue;
+    for (const declarator of unwrapped.declarations ?? []) {
+      if (!isNodeOfType(declarator.id, "Identifier")) continue;
+      const init = declarator.init ?? null;
+      if ((unwrapped.kind === "let" || unwrapped.kind === "var") && init && !isFunctionLike(init)) {
+        mutableBindingNames.add(declarator.id.name);
+        continue;
+      }
+      if (isListenerCollectionInitializer(init)) {
+        listenerCollectionNames.add(declarator.id.name);
+        continue;
+      }
+      if (init && isFunctionLike(init)) {
+        moduleFunctionsByName.set(declarator.id.name, init);
+      }
+    }
+  }
+  const subscribeFunctionNames = new Set<string>();
+  for (const [functionName, functionNode] of moduleFunctionsByName) {
+    if (functionRegistersParameterIntoCollection(functionNode, listenerCollectionNames)) {
+      subscribeFunctionNames.add(functionName);
+    }
+  }
+  return { mutableBindingNames, subscribeFunctionNames };
+};
+
+// `useState(sharedState)` or `useState(() => sharedState)` where the
+// identifier resolves to the module-scope binding (a component-local
+// shadow of the same name must not match).
+const getModuleStoreSnapshotName = (
+  useStateCall: EsTreeNode,
+  storeIndex: ModuleScopeStoreIndex,
+): string | null => {
+  if (!isNodeOfType(useStateCall, "CallExpression")) return null;
+  let initialArgument = stripParenExpression(useStateCall.arguments?.[0]);
+  if (
+    initialArgument &&
+    isFunctionLike(initialArgument) &&
+    !isNodeOfType(initialArgument.body, "BlockStatement")
+  ) {
+    initialArgument = stripParenExpression(initialArgument.body);
+  }
+  if (!isNodeOfType(initialArgument, "Identifier")) return null;
+  if (!storeIndex.mutableBindingNames.has(initialArgument.name)) return null;
+  const binding = findVariableInitializer(initialArgument, initialArgument.name);
+  if (!binding || !isNodeOfType(binding.scopeOwner, "Program")) return null;
+  return initialArgument.name;
+};
+
+const argumentForwardsSetter = (argument: EsTreeNode | undefined, setterName: string): boolean => {
+  if (!argument) return false;
+  const unwrapped = stripParenExpression(argument);
+  if (isNodeOfType(unwrapped, "Identifier")) return unwrapped.name === setterName;
+  // `subscribe((next) => setS(next))` — a thin closure over the setter.
+  if (!isFunctionLike(unwrapped)) return false;
+  let callsSetter = false;
+  walkAst(unwrapped.body, (child: EsTreeNode) => {
+    if (
+      isNodeOfType(child, "CallExpression") &&
+      isNodeOfType(child.callee, "Identifier") &&
+      child.callee.name === setterName
+    ) {
+      callsSetter = true;
+      return false;
+    }
+  });
+  return callsSetter;
+};
+
+const findModuleSubscribeCallForwardingSetter = (
+  effectCallback: EsTreeNode,
+  setterName: string,
+  storeIndex: ModuleScopeStoreIndex,
+): EsTreeNode | null => {
+  let matchedCall: EsTreeNode | null = null;
+  const callbackBody = isFunctionLike(effectCallback) ? effectCallback.body : null;
+  walkAst(callbackBody ?? effectCallback, (child: EsTreeNode) => {
+    if (matchedCall) return false;
+    if (!isNodeOfType(child, "CallExpression")) return;
+    if (!isNodeOfType(child.callee, "Identifier")) return;
+    if (!storeIndex.subscribeFunctionNames.has(child.callee.name)) return;
+    const binding = findVariableInitializer(child.callee, child.callee.name);
+    if (!binding || !isNodeOfType(binding.scopeOwner, "Program")) return;
+    for (const argument of child.arguments ?? []) {
+      if (argumentForwardsSetter(argument, setterName)) {
+        matchedCall = child;
+        return false;
+      }
+    }
+  });
+  return matchedCall;
 };
 
 const cleanupReleasesSubscription = (
@@ -172,6 +363,16 @@ export const preferUseSyncExternalStore = defineRule({
   recommendation:
     "Replace the `useState(getSnapshot())` + `useEffect(() => store.subscribe(() => setSnapshot(getSnapshot())))` pair with `useSyncExternalStore(store.subscribe, getSnapshot)`. The hook gets this right during concurrent rendering and on the server; the hand-rolled version doesn't.",
   create: (context: RuleContext) => {
+    let cachedStoreIndex: ModuleScopeStoreIndex | null = null;
+    const storeIndexFor = (node: EsTreeNode): ModuleScopeStoreIndex => {
+      if (cachedStoreIndex) return cachedStoreIndex;
+      const programRoot = findProgramRoot(node);
+      cachedStoreIndex = programRoot
+        ? buildModuleScopeStoreIndex(programRoot)
+        : { mutableBindingNames: new Set(), subscribeFunctionNames: new Set() };
+      return cachedStoreIndex;
+    };
+
     const checkComponent = (componentBody: EsTreeNode | null | undefined): void => {
       if (!componentBody || !isNodeOfType(componentBody, "BlockStatement")) return;
 
@@ -240,6 +441,8 @@ export const preferUseSyncExternalStore = defineRule({
           continue;
         }
 
+        if (isTrivialLiteralExpression(setterPayload.setterArgument)) continue;
+
         if (
           !cleanupReleasesSubscription(
             effectBodyStatements,
@@ -256,15 +459,73 @@ export const preferUseSyncExternalStore = defineRule({
           message: `Your users can see stale or torn values because useState "${valueName}" syncs an outside store through a useEffect.`,
         });
       }
+
+      checkModuleStoreShape(componentBody, useStateBindings);
+    };
+
+    const checkModuleStoreShape = (
+      componentBody: EsTreeNode,
+      useStateBindings: ReturnType<typeof collectUseStateBindings>,
+    ): void => {
+      const storeIndex = storeIndexFor(componentBody);
+      if (storeIndex.mutableBindingNames.size === 0) return;
+      if (storeIndex.subscribeFunctionNames.size === 0) return;
+
+      const snapshotBindings = useStateBindings
+        .map((binding) => ({
+          binding,
+          storeName: isNodeOfType(binding.declarator.init, "CallExpression")
+            ? getModuleStoreSnapshotName(binding.declarator.init, storeIndex)
+            : null,
+        }))
+        .filter(
+          (candidate): candidate is typeof candidate & { storeName: string } =>
+            candidate.storeName !== null,
+        );
+      if (snapshotBindings.length === 0) return;
+
+      const reportedDeclarators = new Set<EsTreeNode>();
+      for (const effectCall of findUseEffectsInComponent(componentBody)) {
+        if (!isNodeOfType(effectCall, "CallExpression")) continue;
+        if ((effectCall.arguments?.length ?? 0) < 2) continue;
+        const depsNode = effectCall.arguments[1];
+        if (!isNodeOfType(depsNode, "ArrayExpression")) continue;
+        if ((depsNode.elements?.length ?? 0) !== 0) continue;
+
+        const callback = getEffectCallback(effectCall);
+        if (!callback || !isFunctionLike(callback)) continue;
+
+        for (const { binding, storeName } of snapshotBindings) {
+          if (reportedDeclarators.has(binding.declarator)) continue;
+          const subscribeCall = findModuleSubscribeCallForwardingSetter(
+            callback,
+            binding.setterName,
+            storeIndex,
+          );
+          if (!subscribeCall) continue;
+          reportedDeclarators.add(binding.declarator);
+          context.report({
+            node: binding.declarator,
+            message: `Your users can miss updates or see torn values because useState "${binding.valueName}" snapshots module store "${storeName}" at render but only subscribes later in a useEffect.`,
+          });
+        }
+      }
     };
 
     return {
+      // Custom hooks are the canonical host of the hand-rolled store shape
+      // (the ground-truth `usePushSubscription` is a hook), so both
+      // components and `use*` hooks are checked.
       FunctionDeclaration(node: EsTreeNodeOfType<"FunctionDeclaration">) {
-        if (!node.id?.name || !isUppercaseName(node.id.name)) return;
+        const functionName = node.id?.name;
+        if (!functionName) return;
+        if (!isUppercaseName(functionName) && !isReactHookName(functionName)) return;
         checkComponent(node.body);
       },
       VariableDeclarator(node: EsTreeNodeOfType<"VariableDeclarator">) {
-        if (!isComponentAssignment(node)) return;
+        const isHookAssignment =
+          isNodeOfType(node.id, "Identifier") && isReactHookName(node.id.name);
+        if (!isComponentAssignment(node) && !isHookAssignment) return;
         if (
           !isNodeOfType(node.init, "ArrowFunctionExpression") &&
           !isNodeOfType(node.init, "FunctionExpression")

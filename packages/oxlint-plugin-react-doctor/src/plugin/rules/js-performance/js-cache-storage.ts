@@ -5,6 +5,7 @@ import { isMemberProperty } from "../../utils/is-member-property.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 const ARRAY_ITERATION_CALLBACK_METHOD_NAMES: ReadonlySet<string> = new Set([
@@ -63,11 +64,8 @@ export const jsCacheStorage = defineRule({
       "ArrowFunctionExpression:exit": exitFunctionScope,
       CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
         if (!isMemberProperty(node.callee, "getItem")) return;
-        if (
-          !isNodeOfType(node.callee.object, "Identifier") ||
-          !STORAGE_OBJECTS.has(node.callee.object.name)
-        )
-          return;
+        const receiver = stripParenExpression(node.callee.object);
+        if (!isNodeOfType(receiver, "Identifier") || !STORAGE_OBJECTS.has(receiver.name)) return;
         if (!isNodeOfType(node.arguments?.[0], "Literal")) return;
 
         const storageReadCounts = storageReadCountStack[storageReadCountStack.length - 1];
@@ -76,7 +74,7 @@ export const jsCacheStorage = defineRule({
         storageReadCounts.set(storageKey, readCount);
 
         if (readCount === DUPLICATE_STORAGE_READ_THRESHOLD) {
-          const storageName = node.callee.object.name;
+          const storageName = receiver.name;
           context.report({
             node,
             message: `This is slow because ${storageName}.getItem("${storageKey}") runs several times & re-parses the data each call, so read it once & reuse the value`,

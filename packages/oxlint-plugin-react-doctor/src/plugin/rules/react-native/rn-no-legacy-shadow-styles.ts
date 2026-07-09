@@ -6,6 +6,7 @@ import { normalizeFilename } from "../../utils/normalize-filename.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import type { RuleVisitors } from "../../utils/rule-visitors.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 const EMPTY_VISITORS: RuleVisitors = {};
@@ -69,11 +70,8 @@ export const rnNoLegacyShadowStyles = defineRule({
       },
       CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
         if (!isNodeOfType(node.callee, "MemberExpression")) return;
-        if (
-          !isNodeOfType(node.callee.object, "Identifier") ||
-          node.callee.object.name !== "StyleSheet"
-        )
-          return;
+        const receiver = stripParenExpression(node.callee.object);
+        if (!isNodeOfType(receiver, "Identifier") || receiver.name !== "StyleSheet") return;
         if (!isMemberProperty(node.callee, "create")) return;
 
         const stylesArgument = node.arguments?.[0];

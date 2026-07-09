@@ -744,10 +744,27 @@ const isNonReactEffectEventCallee = (
   callee: EsTreeNode,
   contextNode: EsTreeNode,
   scopes: ScopeAnalysis,
-): boolean =>
-  isNodeOfType(callee, "Identifier") &&
-  (isImportedFromNonReactModule(contextNode, callee.name) ||
-    resolvesToLocalNonImportBinding(callee, scopes));
+): boolean => {
+  if (isNodeOfType(callee, "Identifier")) {
+    return (
+      isImportedFromNonReactModule(contextNode, callee.name) ||
+      resolvesToLocalNonImportBinding(callee, scopes)
+    );
+  }
+  // `Utils.useEffectEvent(...)` through a namespace/binding imported from a
+  // non-React package is the same polyfill origin spelled as a member access
+  // (floating-ui-style util namespaces). `React.useEffectEvent` keeps firing
+  // because "react" is a React runtime source, and a bare unimported
+  // `Hook.useEffectEvent(...)` object stays treated as React's for parity.
+  if (
+    isNodeOfType(callee, "MemberExpression") &&
+    !callee.computed &&
+    isNodeOfType(callee.object, "Identifier")
+  ) {
+    return isImportedFromNonReactModule(contextNode, callee.object.name);
+  }
+  return false;
+};
 
 const isNonReactEffectEventSymbol = (
   symbol: SymbolDescriptor,

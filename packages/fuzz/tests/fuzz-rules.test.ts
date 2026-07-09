@@ -123,7 +123,9 @@ describe.skipIf(!isFuzzEnabled)("adversarial rule fuzzing", () => {
       (wasExercised ? firedRuleIds : silentRuleIds).add(entry.id);
       const blockingFindings = isStrict
         ? findings
-        : findings.filter((finding) => finding.kind !== "invariant-violation");
+        : findings.filter(
+            (finding) => finding.kind !== "invariant-violation" && finding.kind !== "verdict-drop",
+          );
       const advisoryFindings = findings.filter((finding) => !blockingFindings.includes(finding));
       for (const finding of advisoryFindings) {
         console.warn(formatFinding(finding, writeReproducer(finding)));

@@ -203,6 +203,21 @@ describe("react-builtins/no-did-update-set-state — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("still flags setState when the `this` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noDidUpdateSetState,
+      `
+      class Hello extends React.Component {
+        componentDidUpdate() {
+          (this as any).setState({ data: 123 });
+        }
+      }
+      `,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
   it("still flags a setState after (not inside) a diff guard", () => {
     const result = runRule(
       noDidUpdateSetState,

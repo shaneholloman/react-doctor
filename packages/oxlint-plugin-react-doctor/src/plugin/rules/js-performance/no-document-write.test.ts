@@ -25,6 +25,12 @@ describe("no-document-write", () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it("still flags when the `document` receiver is wrapped in `as any`", () => {
+    const result = runRule(noDocumentWrite, `(document as any).write("x");`);
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("does not flag a computed `document[expr]()` access", () => {
     const result = runRule(noDocumentWrite, `document[method]("x");`);
     expect(result.diagnostics).toHaveLength(0);

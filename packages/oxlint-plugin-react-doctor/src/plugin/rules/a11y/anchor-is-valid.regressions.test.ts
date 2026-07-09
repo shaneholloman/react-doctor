@@ -123,4 +123,45 @@ const L = () => <a href={topHref}>top</a>;`,
     const result = runRule(anchorIsValid, `const L = ({ href }) => <a href={href}>link</a>;`);
     expect(result.diagnostics).toEqual([]);
   });
+
+  // oxc `is_invalid_href` parity: any `javascript:`-scheme href goes
+  // nowhere, not just the exact `javascript:void(0)` spelling.
+  it('flags `href="javascript:;"` with onClick', () => {
+    const result = runRule(
+      anchorIsValid,
+      `const B = () => <a href="javascript:;" onClick={go}>x</a>;`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a javascript: href hidden behind leading whitespace", () => {
+    const result = runRule(
+      anchorIsValid,
+      `const B = () => <a href=" javascript:alert('x')">x</a>;`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a template href with an expression (dynamic, assumed valid)", () => {
+    const result = runRule(anchorIsValid, "const L = ({ id }) => <a href={`#${id}`}>x</a>;");
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag an imported const href (cross-file, stays dynamic)", () => {
+    const result = runRule(
+      anchorIsValid,
+      `import { HREF } from "./links";
+const L = () => <a href={HREF} onClick={go}>x</a>;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag an href bound via a destructuring default (source may override)", () => {
+    const result = runRule(
+      anchorIsValid,
+      `const { href = "#" } = config;
+const L = ({ act }) => <a href={href} onClick={act}>x</a>;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

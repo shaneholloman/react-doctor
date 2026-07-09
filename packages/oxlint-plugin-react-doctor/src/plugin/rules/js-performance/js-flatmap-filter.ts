@@ -4,6 +4,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { RuleContext } from "../../utils/rule-context.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 export const jsFlatmapFilter = defineRule({
   id: "js-flatmap-filter",
@@ -39,7 +40,7 @@ export const jsFlatmapFilter = defineRule({
 
       if (!isFilterBoolean) return;
 
-      const innerCall = node.callee.object;
+      const innerCall = stripParenExpression(node.callee.object);
       if (
         !isNodeOfType(innerCall, "CallExpression") ||
         !isNodeOfType(innerCall.callee, "MemberExpression") ||
@@ -53,7 +54,7 @@ export const jsFlatmapFilter = defineRule({
       // `[a, b, c].map(...).filter(Boolean)` — iterating a small
       // literal twice is trivial cost; the flatMap rewrite is pure
       // ceremony at this scale.
-      const receiver: EsTreeNode | null | undefined = innerCall.callee.object;
+      const receiver: EsTreeNode | null | undefined = stripParenExpression(innerCall.callee.object);
       if (receiver && isNodeOfType(receiver, "ArrayExpression")) {
         const elements = receiver.elements ?? [];
         if (

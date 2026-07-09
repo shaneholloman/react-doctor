@@ -73,9 +73,13 @@ const isKeyboardOperableWidgetAnchor = (
   (Boolean(hasJsxPropIgnoreCase(openingElement.attributes, "onkeydown")) ||
     Boolean(hasJsxPropIgnoreCase(openingElement.attributes, "onkeyup")));
 
+// Mirrors oxc `is_invalid_href`: empty, `#`, or any `javascript:`-scheme
+// href (after stripping leading non-word characters, so ` javascript:;`
+// and `//javascript:` still match) goes nowhere.
 const isInvalidHref = (value: string, validHrefs: ReadonlySet<string>): boolean => {
   if (validHrefs.has(value)) return false;
-  return value === "" || value === "#" || value === "javascript:void(0)";
+  const withoutLeadingNonWord = value.replace(/^[^a-zA-Z0-9_]+/, "");
+  return value === "" || value === "#" || withoutLeadingNonWord.startsWith("javascript:");
 };
 
 // The string-valued cases live in `getJsxPropStaticStringValues`; this

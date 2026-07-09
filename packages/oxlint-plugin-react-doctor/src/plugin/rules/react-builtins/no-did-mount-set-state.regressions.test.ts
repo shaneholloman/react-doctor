@@ -145,6 +145,25 @@ describe("react-builtins/no-did-mount-set-state — regressions", () => {
     expect(result.diagnostics).toHaveLength(1);
   });
 
+  it("still flags setState when the `this` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noDidMountSetState,
+      `
+      import { Component } from "react";
+      class Hello extends Component {
+        componentDidMount() {
+          (this as any).setState({ name: this.props.name.toUpperCase() });
+        }
+        render() {
+          return <div>{this.state.name}</div>;
+        }
+      }
+      `,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("still flags setState before the first await in an async componentDidMount", () => {
     const result = runRule(
       noDidMountSetState,

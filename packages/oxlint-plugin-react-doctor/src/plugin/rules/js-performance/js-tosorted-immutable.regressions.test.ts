@@ -147,4 +147,10 @@ describe("js-performance/js-tosorted-immutable — regressions", () => {
       fill(arr);
       const s = [...arr].sort();`);
   });
+
+  it("still flags a spread-copy sort when the receiver is wrapped in `as any`", () => {
+    expectFail(`const arr = new Array(5);
+      fill(arr);
+      const s = ([...arr] as any).sort();`);
+  });
 });

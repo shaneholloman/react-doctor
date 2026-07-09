@@ -127,4 +127,31 @@ const X = ({ go }) => <div role={clickableRole} onClick={go}>{label}</div>;`,
     );
     expect(result.diagnostics).toEqual([]);
   });
+
+  it("flags a nested ternary whose branches are all interactive and unfocusable", () => {
+    const result = runRule(
+      interactiveSupportsFocus,
+      `const X = ({ a, b, go }) => (
+        <div role={a ? "button" : b ? "link" : "switch"} onClick={go}>{label}</div>
+      );`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a role bound via a destructuring default (source may override)", () => {
+    const result = runRule(
+      interactiveSupportsFocus,
+      `const { role = "button" } = config;
+const X = ({ go }) => <div role={role} onClick={go}>{label}</div>;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a space-separated fallback role list (conservative bail)", () => {
+    const result = runRule(
+      interactiveSupportsFocus,
+      `const X = ({ go }) => <div role="button link" onClick={go}>{label}</div>;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

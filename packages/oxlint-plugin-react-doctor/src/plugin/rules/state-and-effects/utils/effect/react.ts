@@ -4,6 +4,10 @@ import { isAstNode } from "../../../../utils/is-ast-node.js";
 import { isFunctionLike } from "../../../../utils/is-function-like.js";
 import { isNodeOfType } from "../../../../utils/is-node-of-type.js";
 import {
+  TRANSPARENT_EXPRESSION_WRAPPER_TYPES,
+  stripParenExpression,
+} from "../../../../utils/strip-paren-expression.js";
+import {
   getDownstreamRefs,
   getRef,
   getUpstreamRefs,
@@ -174,9 +178,10 @@ const isHookCallee = (
     return false;
   }
   if (isNodeOfType(node, "MemberExpression")) {
+    const receiver = stripParenExpression(node.object);
     return (
-      isNodeOfType(node.object, "Identifier") &&
-      node.object.name === "React" &&
+      isNodeOfType(receiver, "Identifier") &&
+      receiver.name === "React" &&
       isNodeOfType(node.property, "Identifier") &&
       node.property.name === hookName
     );
@@ -188,16 +193,14 @@ export const isUseEffect = (node: EsTreeNode | null | undefined): boolean => {
   if (!node || !isNodeOfType(node, "CallExpression")) return false;
   const callee = node.callee;
   if (isNodeOfType(callee, "Identifier") && callee.name === "useEffect") return true;
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    isNodeOfType(callee.object, "Identifier") &&
-    callee.object.name === "React" &&
+  if (!isNodeOfType(callee, "MemberExpression")) return false;
+  const receiver = stripParenExpression(callee.object);
+  return (
+    isNodeOfType(receiver, "Identifier") &&
+    receiver.name === "React" &&
     isNodeOfType(callee.property, "Identifier") &&
     callee.property.name === "useEffect"
-  ) {
-    return true;
-  }
-  return false;
+  );
 };
 
 export const getEffectFn = (analysis: ProgramAnalysis, node: EsTreeNode): EsTreeNode | null => {
@@ -400,10 +403,20 @@ const HANDLER_NAMED_METHOD_PATTERN = /^(on|handle)[A-Z]/;
 export const isPropCallbackInvocationRef = (analysis: ProgramAnalysis, ref: Reference): boolean => {
   if (!isPropAlias(analysis, ref)) return false;
   const identifier = ref.identifier as unknown as EsTreeNode;
-  const parent = (identifier as unknown as { parent?: EsTreeNode | null }).parent;
+  let effectiveNode = identifier;
+  let parent = (effectiveNode as unknown as { parent?: EsTreeNode | null }).parent;
+  while (
+    parent &&
+    TRANSPARENT_EXPRESSION_WRAPPER_TYPES.has(parent.type) &&
+    "expression" in parent &&
+    parent.expression === effectiveNode
+  ) {
+    effectiveNode = parent;
+    parent = (effectiveNode as unknown as { parent?: EsTreeNode | null }).parent;
+  }
   if (!parent) return false;
-  if (isNodeOfType(parent, "CallExpression") && parent.callee === identifier) return true;
-  if (isNodeOfType(parent, "MemberExpression") && parent.object === identifier) {
+  if (isNodeOfType(parent, "CallExpression") && parent.callee === effectiveNode) return true;
+  if (isNodeOfType(parent, "MemberExpression") && parent.object === effectiveNode) {
     const memberParent = (parent as unknown as { parent?: EsTreeNode | null }).parent;
     if (isNodeOfType(memberParent, "CallExpression") && memberParent.callee === parent) {
       if (

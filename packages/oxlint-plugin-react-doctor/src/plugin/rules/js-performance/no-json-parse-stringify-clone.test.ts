@@ -141,6 +141,15 @@ describe("no-json-parse-stringify-clone", () => {
     expect(result.diagnostics).toHaveLength(1);
   });
 
+  it("still flags a clone when the `JSON` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      noJsonParseStringifyClone,
+      `const copy = (JSON as any).parse(JSON.stringify(state));`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   // sofn-xyz/mailing settings: both
   // mined clones inside getServerSideProps props MUST keep firing.
   it("flags both clones in a getServerSideProps props object", () => {

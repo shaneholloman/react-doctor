@@ -4,10 +4,12 @@ import { normalizeFilename } from "../../utils/normalize-filename.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { walkAst } from "../../utils/walk-ast.js";
+import { functionContainsReactRenderOutput } from "../../utils/function-contains-react-render-output.js";
 import { isEs6Component } from "../../utils/is-es6-component.js";
 import { isInsideFunctionScope } from "../../utils/is-inside-function-scope.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isReactComponentName } from "../../utils/is-react-component-name.js";
+import type { ScopeAnalysis } from "../../semantic/scope-analysis.js";
 import {
   ENTRY_POINT_BASENAMES,
   NON_FAST_REFRESH_PATH_SEGMENTS,
@@ -119,6 +121,7 @@ interface AnalyzerState {
   // Module-scope component binding names — used to spot a component
   // reference smuggled inside a namespace-object export.
   localComponentNames: ReadonlySet<string>;
+  scopes: ScopeAnalysis;
 }
 
 const isReactHocName = (name: string, state: AnalyzerState): boolean => state.customHocs.has(name);
@@ -208,9 +211,13 @@ const objectExpressionBundlesComponents = (
       isNodeOfType(property.key as EsTreeNode, "Identifier") &&
       isReactComponentName((property.key as EsTreeNodeOfType<"Identifier">).name);
     if (!hasComponentNamedKey) continue;
+    // The PascalCase key alone is a name heuristic — `{ FormatDate:
+    // (d) => d.toISOString() }` is a formatter map, not a component
+    // bundle — so the inline function must actually render.
     if (
-      isNodeOfType(value, "ArrowFunctionExpression") ||
-      isNodeOfType(value, "FunctionExpression")
+      (isNodeOfType(value, "ArrowFunctionExpression") ||
+        isNodeOfType(value, "FunctionExpression")) &&
+      functionContainsReactRenderOutput(value, state.scopes)
     ) {
       return true;
     }
@@ -477,10 +484,21 @@ export const onlyExportComponents = defineRule({
           allowExportNames: new Set(settings.allowExportNames),
           allowConstantExport: settings.allowConstantExport,
           localComponentNames,
+          scopes: context.scopes,
         };
+        // A PascalCase name alone is a heuristic (`const FormatDate =
+        // (d) => d.toISOString()` is a formatter, not a component), so a
+        // directly-inspectable function body must show render output
+        // before its name can match inside a namespace-object export.
+        // HOC-wrapped initializers (`memo(...)`) stay trusted — the
+        // component body isn't inspectable through the wrapper.
         for (const child of componentCandidates) {
           if (isNodeOfType(child, "FunctionDeclaration") && child.id) {
-            if (isReactComponentName(child.id.name) && !isInsideFunctionScope(child)) {
+            if (
+              isReactComponentName(child.id.name) &&
+              !isInsideFunctionScope(child) &&
+              functionContainsReactRenderOutput(child, context.scopes)
+            ) {
               localComponentNames.add(child.id.name);
             }
           }
@@ -501,7 +519,17 @@ export const onlyExportComponents = defineRule({
                 (initializer ? isEs6Component(skipTsExpression(initializer)) : false)) &&
               !isInsideFunctionScope(child)
             ) {
-              localComponentNames.add(child.id.name);
+              const expression = initializer ? skipTsExpression(initializer) : null;
+              const isDirectFunction =
+                expression !== null &&
+                (isNodeOfType(expression, "ArrowFunctionExpression") ||
+                  isNodeOfType(expression, "FunctionExpression"));
+              if (
+                !isDirectFunction ||
+                functionContainsReactRenderOutput(expression, context.scopes)
+              ) {
+                localComponentNames.add(child.id.name);
+              }
             }
           }
         }

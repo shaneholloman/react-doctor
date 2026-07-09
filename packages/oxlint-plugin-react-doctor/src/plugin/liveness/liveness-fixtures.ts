@@ -696,6 +696,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-legacy-context-api": {
     code: 'class ColorProvider extends React.Component {\n  static childContextTypes = { color: PropTypes.string };\n  getChildContext() {\n    return { color: "red" };\n  }\n  render() {\n    return <div>{this.props.children}</div>;\n  }\n}',
   },
+  "no-locale-format-in-render": {
+    code: '"use client";\nexport const Timestamp = ({ value }) => <time>{new Date(value).toLocaleString()}</time>;',
+  },
   "no-long-transition-duration": {
     code: 'const S = () => <div style={{ transition: "width 2s ease" }} />;',
   },

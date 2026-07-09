@@ -1067,4 +1067,214 @@ describe("no-mutating-reducer-state", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics).toHaveLength(1);
   });
+
+  it("does NOT flag a chained immutable return `state.set(...).set(...)`", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        return state.set(action.k, action.v).set(action.k2, action.v2);
+      }
+
+      useReducer(reducer, initialImmutableState);
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does NOT flag a collection call consumed by a return-position ternary", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        return action.cond ? state.set(action.k, action.v) : state;
+      }
+
+      useReducer(reducer, initialImmutableState);
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does NOT flag a collection call consumed as another call's argument", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        log(state.set(action.k, action.v));
+        return state;
+      }
+
+      useReducer(reducer, initialImmutableState);
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does NOT flag a collection call consumed by a logical expression", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        const removed = state.delete(action.k) && action.rest;
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags `void state.set(...)` — void explicitly discards the result", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        void state.set(action.k, action.v);
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a discarded collection call inside a return-position sequence expression", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        return (state.set(action.k, action.v), state);
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a discarded optional-chained collection call `state?.set(...)`", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        state?.set(action.k, action.v);
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a bare `state.clear()` before returning state", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        state.clear();
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not crash on spread call arguments `state.set(...action.args)`", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        state.set(...action.args);
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("flags a discarded collection call on a nested state-derived receiver", () => {
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        state.byId.set(action.k, action.v);
+        return state;
+      }
+
+      useReducer(reducer, { byId: new Map() });
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not track mutations through call results — `state.get(k).push(x)` is a documented miss", () => {
+    // Native Map.get returns the held reference, so this DOES mutate state
+    // at runtime — but the receiver is a call result, and the rule only
+    // models syntactically obvious state-rooted receivers (see the
+    // "broader mutation APIs" TODO). Locked in as a known false negative.
+    const result = runRule(
+      noMutatingReducerState,
+      `
+      import { useReducer } from "react";
+
+      function reducer(state, action) {
+        state.get(action.k).push(action.x);
+        return state;
+      }
+
+      useReducer(reducer, new Map());
+    `,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
 });

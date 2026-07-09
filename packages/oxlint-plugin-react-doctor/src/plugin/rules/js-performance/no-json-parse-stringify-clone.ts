@@ -4,6 +4,7 @@ import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isFunctionLike } from "../../utils/is-function-like.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isReactComponentName } from "../../utils/is-react-component-name.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 
 const MESSAGE =
   "`JSON.parse(JSON.stringify(x))` deep-clones by re-serializing: it is slow on large objects and silently drops `undefined`, functions, `Date`/`Map`/`Set`, and cyclic references. Use `structuredClone(x)`.";
@@ -17,11 +18,11 @@ const isJsonMethodCall = (
 ): node is EsTreeNodeOfType<"CallExpression"> => {
   if (!isNodeOfType(node, "CallExpression")) return false;
   const callee = node.callee;
+  if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return false;
+  const receiver = stripParenExpression(callee.object);
   return (
-    isNodeOfType(callee, "MemberExpression") &&
-    !callee.computed &&
-    isNodeOfType(callee.object, "Identifier") &&
-    callee.object.name === "JSON" &&
+    isNodeOfType(receiver, "Identifier") &&
+    receiver.name === "JSON" &&
     isNodeOfType(callee.property, "Identifier") &&
     callee.property.name === method
   );

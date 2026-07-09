@@ -5,6 +5,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isSetStateCallInLifecycle } from "../../utils/is-set-state-in-lifecycle.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
 
 const LIFECYCLE_NAMES = new Set(["componentDidUpdate"]);
@@ -193,7 +194,7 @@ export const noDidUpdateSetState = defineRule({
     return {
       CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
         if (!isNodeOfType(node.callee, "MemberExpression")) return;
-        if (!isNodeOfType(node.callee.object, "ThisExpression")) return;
+        if (!isNodeOfType(stripParenExpression(node.callee.object), "ThisExpression")) return;
         if (
           !isNodeOfType(node.callee.property, "Identifier") ||
           node.callee.property.name !== "setState"

@@ -8,6 +8,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { RuleContext } from "../../utils/rule-context.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
 
 const isIteratorProducingCall = (
@@ -15,25 +16,26 @@ const isIteratorProducingCall = (
   generatorNamesInFile: ReadonlySet<string>,
 ): boolean => {
   const callee = callExpression.callee;
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    isNodeOfType(callee.object, "Identifier") &&
-    callee.object.name === "Iterator" &&
-    isNodeOfType(callee.property, "Identifier") &&
-    callee.property.name === "from"
-  ) {
-    return true;
+  if (isNodeOfType(callee, "MemberExpression")) {
+    const receiver = stripParenExpression(callee.object);
+    if (
+      isNodeOfType(receiver, "Identifier") &&
+      receiver.name === "Iterator" &&
+      isNodeOfType(callee.property, "Identifier") &&
+      callee.property.name === "from"
+    ) {
+      return true;
+    }
+    if (
+      isNodeOfType(callee.property, "Identifier") &&
+      ITERATOR_PRODUCING_METHOD_NAMES.has(callee.property.name)
+    ) {
+      if (isNodeOfType(receiver, "Identifier") && receiver.name === "Object") return false;
+      return true;
+    }
+    return false;
   }
   if (isNodeOfType(callee, "Identifier") && generatorNamesInFile.has(callee.name)) {
-    return true;
-  }
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    isNodeOfType(callee.property, "Identifier") &&
-    ITERATOR_PRODUCING_METHOD_NAMES.has(callee.property.name)
-  ) {
-    const receiver = callee.object;
-    if (isNodeOfType(receiver, "Identifier") && receiver.name === "Object") return false;
     return true;
   }
   return false;
@@ -52,10 +54,7 @@ const isReceiverChainIteratorRooted = (
 ): boolean => {
   let cursor: EsTreeNode | null | undefined = receiverNode;
   while (cursor) {
-    if (isNodeOfType(cursor, "ChainExpression")) {
-      cursor = cursor.expression;
-      continue;
-    }
+    cursor = stripParenExpression(cursor);
     if (!isNodeOfType(cursor, "CallExpression")) return false;
     if (isIteratorProducingCall(cursor, generatorNamesInFile)) return true;
     if (!isChainPassThroughCall(cursor)) return false;
@@ -188,10 +187,7 @@ const isStringSplitRootedChain = (receiverNode: EsTreeNode | null | undefined): 
   let hops = 0;
   while (cursor && hops < 12) {
     hops += 1;
-    if (isNodeOfType(cursor, "ChainExpression")) {
-      cursor = cursor.expression;
-      continue;
-    }
+    cursor = stripParenExpression(cursor);
     if (!isNodeOfType(cursor, "CallExpression")) return false;
     const callee = cursor.callee;
     if (!isNodeOfType(callee, "MemberExpression")) return false;
@@ -224,10 +220,7 @@ const isSmallLiteralArrayRootedChain = (
 ): boolean => {
   let cursor: EsTreeNode | null | undefined = receiverNode;
   while (cursor) {
-    if (isNodeOfType(cursor, "ChainExpression")) {
-      cursor = cursor.expression;
-      continue;
-    }
+    cursor = stripParenExpression(cursor);
     if (isNodeOfType(cursor, "ArrayExpression")) return isSmallLiteralArray(cursor);
     if (isNodeOfType(cursor, "Identifier")) return smallConstArrayNames.has(cursor.name);
     if (!isNodeOfType(cursor, "CallExpression")) return false;
@@ -329,7 +322,7 @@ export const jsCombineIterations = defineRule({
         const outerMethod = node.callee.property.name;
         if (!CHAINABLE_ITERATION_METHODS.has(outerMethod)) return;
 
-        const innerCall = node.callee.object;
+        const innerCall = stripParenExpression(node.callee.object);
         if (
           !isNodeOfType(innerCall, "CallExpression") ||
           !isNodeOfType(innerCall.callee, "MemberExpression") ||

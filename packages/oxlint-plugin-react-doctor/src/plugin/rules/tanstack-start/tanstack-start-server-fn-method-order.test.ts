@@ -80,4 +80,16 @@ describe("tanstack-start/server-fn-method-order", () => {
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].message).toContain(".middleware() after .validator()");
   });
+
+  it("still flags a misordered chain when a chain link is wrapped in `as any`", () => {
+    const result = runRule(
+      tanstackStartServerFnMethodOrder,
+      `(createServerFn({ method: "POST" })
+        .validator((input) => input) as any)
+        .middleware((next) => next());`,
+    );
+
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
 });

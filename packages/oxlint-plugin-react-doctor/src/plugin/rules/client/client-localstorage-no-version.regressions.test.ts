@@ -60,6 +60,15 @@ describe("client/client-localstorage-no-version — regressions", () => {
     expect(dynamicKey.diagnostics).toEqual([]);
   });
 
+  it("still flags an unversioned key when the `localStorage` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      clientLocalstorageNoVersion,
+      `(localStorage as any).setItem("userPrefs", JSON.stringify(prefs));`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("stays silent on snake_case and colon version suffixes", () => {
     const snakeCase = runRule(
       clientLocalstorageNoVersion,

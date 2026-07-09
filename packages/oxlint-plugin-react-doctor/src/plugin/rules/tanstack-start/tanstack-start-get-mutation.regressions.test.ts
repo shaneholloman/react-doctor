@@ -15,6 +15,17 @@ describe("tanstack-start/tanstack-start-get-mutation — regressions", () => {
     expect(result.diagnostics[0]?.message).toContain("db.update()");
   });
 
+  it("still flags when the createServerFn() chain receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      tanstackStartGetMutation,
+      `const updateBundle = (createServerFn() as any).handler(async ({ data }) => {
+        await db.update({ id: data.id, status: data.status });
+      });`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("stays silent when the server function declares method POST", () => {
     const result = runRule(
       tanstackStartGetMutation,

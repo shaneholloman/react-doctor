@@ -149,4 +149,37 @@ const F = () => <div role={groupRole} aria-multiselectable="true" />;`,
     );
     expect(result.diagnostics).toEqual([]);
   });
+
+  // `aria-x={undefined}` / `{null}` renders no attribute at all, so the
+  // "role ignores it" claim has nothing to attach to (oxc is_nullish_value
+  // parity — the conditional-clearing pattern is idiomatic React).
+  it("does not flag an aria prop cleared with undefined", () => {
+    const result = runRule(
+      roleSupportsAriaProps,
+      `const F = () => <div role="toolbar" aria-multiselectable={undefined} />;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag an aria prop cleared with null on an implicit role", () => {
+    const result = runRule(roleSupportsAriaProps, `const F = () => <li aria-checked={null} />;`);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a role bound via a destructuring default (source may override)", () => {
+    const result = runRule(
+      roleSupportsAriaProps,
+      `const { role = "toolbar" } = config;
+const F = () => <div role={role} aria-multiselectable="true" />;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a space-separated fallback role list (conservative bail)", () => {
+    const result = runRule(
+      roleSupportsAriaProps,
+      `const F = () => <div role="button link" aria-checked="true" />;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

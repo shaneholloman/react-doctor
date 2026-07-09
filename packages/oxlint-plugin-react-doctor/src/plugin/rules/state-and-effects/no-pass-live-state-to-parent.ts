@@ -2,6 +2,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { isNamespacedApiCallee } from "../../utils/is-namespaced-api-call.js";
 import { isCallResultConsumedAsArgument } from "../../utils/is-call-result-consumed-as-argument.js";
 import { isReactHookName } from "../../utils/is-react-hook-name.js";
@@ -316,7 +317,7 @@ export const noPassLiveStateToParent = defineRule({
           STRING_READ_METHOD_NAMES.has(methodName) &&
           calleeNode &&
           isNodeOfType(calleeNode, "MemberExpression") &&
-          calleeNode.object === (ref.identifier as unknown as typeof calleeNode.object) &&
+          stripParenExpression(calleeNode.object) === (ref.identifier as unknown as EsTreeNode) &&
           isWholePropsObjectReference(analysis, ref),
         );
         if (

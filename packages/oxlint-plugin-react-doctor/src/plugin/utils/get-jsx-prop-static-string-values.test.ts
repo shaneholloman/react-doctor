@@ -56,6 +56,62 @@ describe("getJsxPropStaticStringValues", () => {
     ).toEqual(["checkbox", "radio"]);
   });
 
+  it("resolves every branch of a nested ternary", () => {
+    expect(
+      resolveFirstAttribute(`const x = <div role={a ? "button" : b ? "link" : "menu"} />;`),
+    ).toEqual(["button", "link", "menu"]);
+  });
+
+  it("resolves a const chain at exactly the 4-hop cap", () => {
+    expect(
+      resolveFirstAttribute(
+        `const a = "button"; const b = a; const c = b; const d = c;\nconst x = <div role={d} />;`,
+      ),
+    ).toEqual(["button"]);
+  });
+
+  it("returns null for a const chain past the 4-hop cap", () => {
+    expect(
+      resolveFirstAttribute(
+        `const a = "button"; const b = a; const c = b; const d = c; const e = d;\nconst x = <div role={e} />;`,
+      ),
+    ).toBeNull();
+  });
+
+  it("resolves a parenthesized `as const` string", () => {
+    expect(resolveFirstAttribute(`const x = <div role={("button" as const)} />;`)).toEqual([
+      "button",
+    ]);
+  });
+
+  it("returns null for a const bound via object destructuring (source is not the value)", () => {
+    expect(
+      resolveFirstAttribute(
+        `const config = "button";\nconst { role } = config;\nconst x = <div role={role} />;`,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null for a destructuring default (the source may override it)", () => {
+    expect(
+      resolveFirstAttribute(`const { role = "button" } = config;\nconst x = <div role={role} />;`),
+    ).toBeNull();
+  });
+
+  it("returns null for a const bound via array destructuring", () => {
+    expect(
+      resolveFirstAttribute(
+        `const roles = "button";\nconst [role] = roles;\nconst x = <div role={role} />;`,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null for a const initialized from a function call", () => {
+    expect(
+      resolveFirstAttribute(`const role = resolveRole();\nconst x = <div role={role} />;`),
+    ).toBeNull();
+  });
+
   it("returns null for a let binding (reassignable)", () => {
     expect(
       resolveFirstAttribute(`let currentRole = "button";\nconst x = <div role={currentRole} />;`),

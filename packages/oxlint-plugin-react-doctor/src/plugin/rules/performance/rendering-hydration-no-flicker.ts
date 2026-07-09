@@ -1,8 +1,10 @@
+import { containsLocaleEnvironmentRead } from "../../utils/contains-locale-environment-read.js";
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import { findProgramRoot } from "../../utils/find-program-root.js";
 import { getEffectCallback } from "../../utils/get-effect-callback.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
+import { isNoOpStatement } from "../../utils/is-no-op-statement.js";
 import { isSetterCall } from "../../utils/is-setter-call.js";
 import { isUseStateSetterInScope } from "../../utils/is-use-state-setter-in-scope.js";
 import type { RuleContext } from "../../utils/rule-context.js";
@@ -127,10 +129,13 @@ export const renderingHydrationNoFlicker = defineRule({
       )
         return;
 
-      const bodyStatements = isNodeOfType(callback.body, "BlockStatement")
-        ? callback.body.body
+      const rawBodyStatements = isNodeOfType(callback.body, "BlockStatement")
+        ? (callback.body.body ?? [])
         : [callback.body];
-      if (!bodyStatements || bodyStatements.length !== 1) return;
+      const bodyStatements = rawBodyStatements.filter(
+        (statement: EsTreeNode) => !isNoOpStatement(statement),
+      );
+      if (bodyStatements.length !== 1) return;
 
       const soleStatement = bodyStatements[0];
       if (!isNodeOfType(soleStatement, "ExpressionStatement")) return;
@@ -143,6 +148,12 @@ export const renderingHydrationNoFlicker = defineRule({
       ) {
         if (argumentsReadRefCurrent(expression.arguments ?? [])) return;
         if (isStateUsedOnlyInIdOrAriaAttributes(expression, expression.callee.name)) return;
+        // A setter fed by a locale/timezone read is the SSR-safe adoption
+        // pattern this rule's sibling (no-locale-format-in-render) tells
+        // users to write — the value cannot be produced during render
+        // without a hydration mismatch, so the post-mount flash is the
+        // correct trade, not a bug.
+        if ((expression.arguments ?? []).some(containsLocaleEnvironmentRead)) return;
         context.report({
           node,
           message:

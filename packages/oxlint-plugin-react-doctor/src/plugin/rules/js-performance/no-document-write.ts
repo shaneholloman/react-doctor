@@ -1,5 +1,6 @@
 import { defineRule } from "../../utils/define-rule.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 
@@ -20,7 +21,8 @@ export const noDocumentWrite = defineRule({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       const callee = node.callee;
       if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
-      if (!isNodeOfType(callee.object, "Identifier") || callee.object.name !== "document") return;
+      const receiver = stripParenExpression(callee.object);
+      if (!isNodeOfType(receiver, "Identifier") || receiver.name !== "document") return;
       if (
         !isNodeOfType(callee.property, "Identifier") ||
         !WRITE_METHODS.has(callee.property.name)

@@ -21,6 +21,12 @@ describe("js-performance/js-cache-storage — regressions", () => {
     );
   });
 
+  it("still flags repeated reads when the `localStorage` receiver is wrapped in `as any`", () => {
+    expectFail(
+      `function f(){ const a = (localStorage as any).getItem("t"); const b = (localStorage as any).getItem("t"); return a === b; }`,
+    );
+  });
+
   it("does not sum single reads across unrelated functions", () => {
     expectPass(
       `export const getToken = () => localStorage.getItem("t"); export const hasToken = () => Boolean(localStorage.getItem("t"));`,

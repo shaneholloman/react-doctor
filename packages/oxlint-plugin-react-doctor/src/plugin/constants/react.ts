@@ -53,12 +53,15 @@ export const TRIVIAL_INITIALIZER_NAMES = new Set([
   "parseFloat",
 ]);
 
-// Constructing these built-ins costs about as much as calling the
-// trivial coercion functions — `useState(new Date())` / `useRef(new
-// Map())` are idiomatic cheap initial values, not the expensive-model
-// construction the lazy-init rules target. Recommending the lazy-init
-// pattern for an empty container is net-negative ceremony. Shared by
-// `rerender-lazy-state-init` and `rerender-lazy-ref-init`.
+// Constructing these built-ins WITH NO ARGUMENTS costs about as much
+// as calling the trivial coercion functions — `useState(new Date())` /
+// `useRef(new Map())` are idiomatic cheap initial values, not the
+// expensive-model construction the lazy-init rules target.
+// Recommending the lazy-init pattern for an empty container is
+// net-negative ceremony. Consumed via
+// `utils/is-trivial-built-in-construction.ts` (which also enforces the
+// zero-argument, identifier-callee shape) by `rerender-lazy-state-init`
+// and `rerender-lazy-ref-init`.
 export const TRIVIAL_CONSTRUCTOR_NAMES: ReadonlySet<string> = new Set([
   "Date",
   "Map",

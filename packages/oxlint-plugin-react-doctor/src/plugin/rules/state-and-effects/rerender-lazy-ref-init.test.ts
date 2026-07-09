@@ -108,7 +108,7 @@ describe("rerender-lazy-ref-init", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("does NOT flag `new Set(props.items)` — the exemption is name-based, construction stays cheap relative to the lazy-ref ceremony", () => {
+  it("flags `new Set(props.items)` — a runtime argument iterates its input on every render", () => {
     const result = runRule(
       rerenderLazyRefInit,
       `
@@ -120,7 +120,8 @@ describe("rerender-lazy-ref-init", () => {
     `,
     );
 
-    expect(result.diagnostics).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toContain("new Set()");
   });
 
   it("still flags a user-defined class constructor", () => {

@@ -114,6 +114,18 @@ export const noEffectEventInDeps = defineRule({
           const calleeSymbol = context.scopes.referenceFor(initializer.callee)?.resolvedSymbol;
           if (calleeSymbol && calleeSymbol.kind !== "import") return;
         }
+        // `Utils.useEffectEvent(...)` through a namespace/binding imported
+        // from a non-React package is the polyfill origin spelled as a member
+        // access; `React.useEffectEvent` keeps firing because "react" is a
+        // React runtime source.
+        if (
+          isNodeOfType(initializer.callee, "MemberExpression") &&
+          !initializer.callee.computed &&
+          isNodeOfType(initializer.callee.object, "Identifier") &&
+          isImportedFromNonReactModule(declaratorNode, initializer.callee.object.name)
+        ) {
+          return;
+        }
         componentBindings.addBindingToCurrentFrame(declaratorNode.id.name);
       },
     });

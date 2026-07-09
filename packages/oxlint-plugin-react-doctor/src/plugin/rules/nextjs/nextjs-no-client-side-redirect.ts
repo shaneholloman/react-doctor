@@ -9,6 +9,7 @@ import { walkAst } from "../../utils/walk-ast.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 // A destination built from the current location (`router.pathname`,
@@ -141,9 +142,8 @@ const isInsidePollingLoop = (
 
 const describeClientSideNavigation = (node: EsTreeNode): string | null => {
   if (isNodeOfType(node, "CallExpression") && isNodeOfType(node.callee, "MemberExpression")) {
-    const objectName = isNodeOfType(node.callee.object, "Identifier")
-      ? node.callee.object.name
-      : null;
+    const receiver = stripParenExpression(node.callee.object);
+    const objectName = isNodeOfType(receiver, "Identifier") ? receiver.name : null;
     const methodName = isNodeOfType(node.callee.property, "Identifier")
       ? node.callee.property.name
       : null;

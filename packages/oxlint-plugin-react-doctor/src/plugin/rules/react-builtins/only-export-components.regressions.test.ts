@@ -524,4 +524,77 @@ describe("react-builtins/only-export-components — regressions", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics).toHaveLength(1);
   });
+
+  // Fuzz edge-case audit 2026-07: a PascalCase name alone is a heuristic.
+  // Namespace-object detection requires render-output evidence from a
+  // directly-inspectable function body, so a formatter map whose helpers
+  // happen to be PascalCase-named is not a component bundle.
+  it("does not flag an exported object of PascalCase formatter functions (no render output)", () => {
+    const formatterMapFile = `
+      const FormatDate = (date) => date.toISOString();
+      export const formatters = {
+        FormatDate,
+        ShortTime: (date) => date.toLocaleTimeString(),
+        locale: "en-US",
+      };
+    `;
+    const result = runRule(onlyExportComponents, formatterMapFile, {
+      filename: "src/format-map.tsx",
+    });
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags a namespace-object export bundling only components (no other members needed)", () => {
+    const componentsOnlyNamespaceFile = `
+      const Home = () => <div>Home</div>;
+      const About = () => <div>About</div>;
+      export const Pages = { Home, About };
+    `;
+    const result = runRule(onlyExportComponents, componentsOnlyNamespaceFile, {
+      filename: "src/pages.tsx",
+    });
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toContain("bundles components inside an object");
+  });
+
+  it("flags a namespace-object export reaching a component through a spread sibling", () => {
+    const spreadNamespaceFile = `
+      const Home = () => <div>Home</div>;
+      export const Pages = { ...basePages, Home };
+    `;
+    const result = runRule(onlyExportComponents, spreadNamespaceFile, {
+      filename: "src/pages-spread.tsx",
+    });
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still detects HOC-wrapped local components inside a namespace-object export", () => {
+    const memoNamespaceFile = `
+      const Home = memo(() => <div>Home</div>);
+      export const Pages = { Home, sidebarWidth: 240 };
+    `;
+    const result = runRule(onlyExportComponents, memoNamespaceFile, {
+      filename: "src/pages-memo.tsx",
+    });
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  // Modern Vite Fast Refresh treats `use[A-Z]*` exports as refresh
+  // boundaries alongside components, so a hook export next to the
+  // component is not a hazard.
+  it("does not flag a custom-hook export alongside a component", () => {
+    const hookAndComponentFile = `
+      export const useToggle = () => useState(false);
+      export const Switch = () => <button />;
+    `;
+    const result = runRule(onlyExportComponents, hookAndComponentFile, {
+      filename: "src/components/switch-control.tsx",
+    });
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

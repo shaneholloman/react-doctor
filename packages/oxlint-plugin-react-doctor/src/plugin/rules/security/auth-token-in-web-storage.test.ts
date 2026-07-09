@@ -71,4 +71,13 @@ describe("auth-token-in-web-storage", () => {
     });
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it("still flags a token write when the `localStorage` receiver is wrapped in `as any`", () => {
+    const result = runRule(
+      authTokenInWebStorage,
+      `(localStorage as any).setItem("authToken", token);`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
 });

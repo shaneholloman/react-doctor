@@ -22,8 +22,8 @@ its `README.md` for architecture; this skill is the operating manual.
 pnpm fuzz                                   # all rules, crash+slow oracles
 FUZZ_RULE=<id substring> pnpm fuzz          # one rule / one family
 FUZZ_ITERATIONS=200 FUZZ_SEED=42 pnpm fuzz  # more cases, fixed seed
-FUZZ_INVARIANTS=1 pnpm fuzz                 # + metamorphic oracle (warn)
-FUZZ_STRICT=1 pnpm fuzz                     # fail on invariant violations
+FUZZ_INVARIANTS=1 pnpm fuzz                 # + metamorphic + verdict-drop oracles (warn)
+FUZZ_STRICT=1 pnpm fuzz                     # fail on invariant violations + verdict drops
 FUZZ_CORPUS_DIR=<dir of repos> pnpm fuzz    # + real files & crossover
 FUZZ_PRINT_SILENT=1 pnpm fuzz               # list rules that never fired
 ```
@@ -108,6 +108,29 @@ rule/kind/seed headers. Every case replays from its seed alone.
 2. Fix by bounding the walk (depth caps, single-pass caching, early exits).
 3. Keep the threshold honest — do not raise `SLOW_RULE_THRESHOLD_MS` to
    make a finding disappear.
+
+**verdict-drop** — the mutation-robustness oracle: the rule FIRED on a
+program, then a verdict-preserving shape rewrite silenced it entirely.
+The catalog lives in `src/verdict-preserving-variants.ts` and rewrites the
+program the way an evading (or just differently-styled) author would:
+parenthesized/`as any`/non-null call receivers, concise arrows converted
+to block returns, a no-op `void 0;` prologue in every function body
+(must-preserve tier), plus optional-chained and computed-member call
+spellings (advisory tier — those are documented static-analysis
+boundaries). Triage exactly like a false negative: the code still contains
+the defect, so the detection was keying on incidental token shape. Fix at
+the shared util when possible (`stripParenExpression` on receivers,
+`getCallbackStatements` no-op filtering, `isGlobalMethodCall`) so every
+rule inherits it. Two standing harnesses:
+
+- `packages/fuzz/tests/verdict-robustness.test.ts` — enforced gate: each
+  audited rule's liveness fixture must keep firing under every
+  must-preserve rewrite. Add your rule id to `AUDITED_RULE_IDS` when you
+  harden a rule; never fix a failure by allowlisting unless the drop is
+  the rule's documented semantics.
+- `bun scripts/measure-verdict-robustness.ts` — advisory registry-wide
+  census over all liveness fixtures (`VERDICT_ADVISORY=1` adds the
+  advisory tier). Use it to find the next brittleness cluster.
 
 **invariant-violation** — the metamorphic oracle: a semantics-preserving
 rewrite (comments, blank lines, trailing unused decl) changed diagnostics.

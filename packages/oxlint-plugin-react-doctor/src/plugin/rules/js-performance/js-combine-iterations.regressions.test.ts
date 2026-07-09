@@ -137,6 +137,10 @@ describe("js-performance/js-combine-iterations — regressions", () => {
     `);
   });
 
+  it("still flags a chain whose inner call is wrapped in `as any`", () => {
+    expectFail(`const r = (items.filter((x) => x.active) as any).map((x) => x.id);`);
+  });
+
   it("reports two independent chains in one file twice", () => {
     const result = runRule(
       jsCombineIterations,

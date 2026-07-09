@@ -1,6 +1,7 @@
 import { defineRule } from "../../utils/define-rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { getImportBindingForName } from "../../utils/find-import-source-for-name.js";
@@ -39,7 +40,8 @@ export const noDocumentStartViewTransition = defineRule({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       const callee = node.callee;
       if (!isNodeOfType(callee, "MemberExpression")) return;
-      if (!isNodeOfType(callee.object, "Identifier") || callee.object.name !== "document") return;
+      const receiver = stripParenExpression(callee.object);
+      if (!isNodeOfType(receiver, "Identifier") || receiver.name !== "document") return;
       if (
         !isNodeOfType(callee.property, "Identifier") ||
         callee.property.name !== "startViewTransition"
@@ -47,7 +49,7 @@ export const noDocumentStartViewTransition = defineRule({
         return;
       // A locally-bound `document` (e.g. a function parameter) shadows the
       // global, so its `startViewTransition` is unrelated to the DOM API.
-      if (context.scopes.symbolFor(callee.object) !== null) return;
+      if (context.scopes.symbolFor(receiver) !== null) return;
       if (!importsReactViewTransition(node)) return;
       context.report({
         node,

@@ -3,6 +3,7 @@ import type { EsTreeNode } from "./es-tree-node.js";
 import { isCookiesOrAwaitedCookiesCall } from "./is-cookies-or-awaited-cookies-call.js";
 import { isNodeOfType } from "./is-node-of-type.js";
 import { isSafeReceiverChain } from "./is-safe-receiver-chain.js";
+import { stripParenExpression } from "./strip-paren-expression.js";
 import { walkAst } from "./walk-ast.js";
 
 export interface FindSideEffectOptions {
@@ -47,7 +48,9 @@ const getCookieMutationMethodName = (
   if (!isNodeOfType(node.callee, "MemberExpression")) return null;
   if (!isNodeOfType(node.callee.property, "Identifier")) return null;
   if (!COOKIE_MUTATION_METHOD_NAMES.has(node.callee.property.name)) return null;
-  if (!isCookieReceiver(node.callee.object, locallyScopedCookieBindings)) return null;
+  if (!isCookieReceiver(stripParenExpression(node.callee.object), locallyScopedCookieBindings)) {
+    return null;
+  }
   return node.callee.property.name;
 };
 
@@ -65,7 +68,7 @@ const isMutatingDbCall = (node: EsTreeNode, locallyScopedSafeBindings: Set<strin
   const { property, object } = node.callee;
   if (!isNodeOfType(property, "Identifier") || !MUTATION_METHOD_NAMES.has(property.name))
     return false;
-  if (isSafeReceiverChain(object, locallyScopedSafeBindings)) return false;
+  if (isSafeReceiverChain(stripParenExpression(object), locallyScopedSafeBindings)) return false;
   return true;
 };
 
@@ -74,9 +77,8 @@ const getDbCallDescription = (node: EsTreeNode): string => {
   if (!isNodeOfType(node.callee, "MemberExpression")) return ".unknown()";
   if (!isNodeOfType(node.callee.property, "Identifier")) return ".unknown()";
   const methodName = node.callee.property.name;
-  const rootObjectName = isNodeOfType(node.callee.object, "Identifier")
-    ? node.callee.object.name
-    : null;
+  const receiver = stripParenExpression(node.callee.object);
+  const rootObjectName = isNodeOfType(receiver, "Identifier") ? receiver.name : null;
   return rootObjectName ? `${rootObjectName}.${methodName}()` : `.${methodName}()`;
 };
 

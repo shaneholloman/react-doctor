@@ -207,6 +207,7 @@ import { noLayoutPropertyAnimation } from "./rules/performance/no-layout-propert
 import { noLayoutTransitionInline } from "./rules/design/no-layout-transition-inline.js";
 import { noLegacyClassLifecycles } from "./rules/architecture/no-legacy-class-lifecycles.js";
 import { noLegacyContextApi } from "./rules/architecture/no-legacy-context-api.js";
+import { noLocaleFormatInRender } from "./rules/performance/no-locale-format-in-render.js";
 import { noLongTransitionDuration } from "./rules/design/no-long-transition-duration.js";
 import { noManyBooleanProps } from "./rules/architecture/no-many-boolean-props.js";
 import { noMirrorPropEffect } from "./rules/state-and-effects/no-mirror-prop-effect.js";
@@ -2742,6 +2743,18 @@ export const reactDoctorRules = [
       ...noLegacyContextApi,
       framework: "global",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/no-locale-format-in-render",
+    id: "no-locale-format-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noLocaleFormatInRender,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(noLocaleFormatInRender.requires ?? [])])],
     },
   },
   {

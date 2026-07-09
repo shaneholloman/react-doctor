@@ -1,17 +1,13 @@
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
+import { isGlobalMethodCall } from "../../utils/is-global-method-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 
 const MESSAGE = "Your app breaks in React 19 because `ReactDOM.render` returns nothing there.";
 
-const isReactDomRenderCall = (node: EsTreeNodeOfType<"CallExpression">): boolean => {
-  if (!isNodeOfType(node.callee, "MemberExpression")) return false;
-  if (!isNodeOfType(node.callee.object, "Identifier")) return false;
-  if (node.callee.object.name !== "ReactDOM") return false;
-  if (!isNodeOfType(node.callee.property, "Identifier")) return false;
-  return node.callee.property.name === "render";
-};
+const isReactDomRenderCall = (node: EsTreeNodeOfType<"CallExpression">): boolean =>
+  isGlobalMethodCall(node, "ReactDOM", "render");
 
 const isUsedAsReturnValue = (parent: EsTreeNode | null | undefined): boolean => {
   if (!parent) return false;

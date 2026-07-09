@@ -1,10 +1,12 @@
-import { TRIVIAL_CONSTRUCTOR_NAMES, TRIVIAL_INITIALIZER_NAMES } from "../../constants/react.js";
+import { TRIVIAL_INITIALIZER_NAMES } from "../../constants/react.js";
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
 import { isReactHookName } from "../../utils/is-react-hook-name.js";
+import { isTrivialBuiltInConstruction } from "../../utils/is-trivial-built-in-construction.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
 // Zero-argument native Date getters (`now.getMonth()`, `Date.now()`) cost
@@ -51,20 +53,23 @@ const findEagerInitializerCall = (
   depth = 0,
 ): EsTreeNodeOfType<"CallExpression"> | EsTreeNodeOfType<"NewExpression"> | null => {
   if (depth > EAGER_CALL_RESOLUTION_DEPTH_LIMIT) return null;
-  if (isNodeOfType(expression, "CallExpression") || isNodeOfType(expression, "NewExpression")) {
-    return expression;
+  // TS wrappers (`makeRows(raw) as Rows`, `buildModel(config)!`) and
+  // optional chains are transparent — the call still runs every render.
+  const innerExpression = stripParenExpression(expression);
+  if (
+    isNodeOfType(innerExpression, "CallExpression") ||
+    isNodeOfType(innerExpression, "NewExpression")
+  ) {
+    return innerExpression;
   }
-  if (isNodeOfType(expression, "ChainExpression")) {
-    return findEagerInitializerCall(expression.expression as EsTreeNode, depth + 1);
+  if (isNodeOfType(innerExpression, "LogicalExpression")) {
+    return findEagerInitializerCall(innerExpression.left as EsTreeNode, depth + 1);
   }
-  if (isNodeOfType(expression, "LogicalExpression")) {
-    return findEagerInitializerCall(expression.left as EsTreeNode, depth + 1);
+  if (isNodeOfType(innerExpression, "MemberExpression")) {
+    return findEagerInitializerCall(innerExpression.object as EsTreeNode, depth + 1);
   }
-  if (isNodeOfType(expression, "MemberExpression")) {
-    return findEagerInitializerCall(expression.object as EsTreeNode, depth + 1);
-  }
-  if (isNodeOfType(expression, "ArrayExpression")) {
-    for (const element of expression.elements ?? []) {
+  if (isNodeOfType(innerExpression, "ArrayExpression")) {
+    for (const element of innerExpression.elements ?? []) {
       if (!element || !isNodeOfType(element, "SpreadElement")) continue;
       const spreadCall = findEagerInitializerCall(element.argument as EsTreeNode, depth + 1);
       if (spreadCall) return spreadCall;
@@ -99,7 +104,7 @@ export const rerenderLazyStateInit = defineRule({
       const calleeName = calleeIsIdentifier ? callee.name : (memberPropertyName ?? "fn");
 
       if (TRIVIAL_INITIALIZER_NAMES.has(calleeName)) return;
-      if (isConstructor && TRIVIAL_CONSTRUCTOR_NAMES.has(calleeName)) return;
+      if (isTrivialBuiltInConstruction(initializer)) return;
       if (
         memberPropertyName &&
         (initializer.arguments ?? []).length === 0 &&

@@ -154,4 +154,21 @@ const T = () => <div role={toggleRole} />;`,
     );
     expect(result.diagnostics).toEqual([]);
   });
+
+  it("flags each token of a space-separated fallback role list", () => {
+    const result = runRule(
+      roleHasRequiredAriaProps,
+      `const T = () => <div role="switch checkbox" />;`,
+    );
+    expect(result.diagnostics).toHaveLength(2);
+  });
+
+  it("does not flag a role bound via a destructuring default (source may override)", () => {
+    const result = runRule(
+      roleHasRequiredAriaProps,
+      `const { role = "switch" } = config;
+const T = () => <div role={role} />;`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
 });

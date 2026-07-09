@@ -771,3 +771,391 @@ describe("no-cascading-set-state — regressions", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 });
+
+describe("no-cascading-set-state — fuzz-hardening: max-path control flow", () => {
+  it("stays silent when a terminating if branch has an else — the branch never co-runs with trailing setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode) {
+            setA(1);
+            setB(1);
+            return;
+          } else {
+            setC(1);
+          }
+          setD(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent when the terminating branch is the alternate", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode) {
+            setC(1);
+          } else {
+            setA(1);
+            setB(1);
+            return;
+          }
+          setD(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent when both branches terminate — trailing setters are unreachable", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode) {
+            setA(1);
+            return;
+          } else {
+            setB(1);
+            return;
+          }
+          setC(1);
+          setD(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent on an else-if chain whose terminating branches are exclusive with the trailing setter", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode === "x") {
+            setA(1);
+            setB(1);
+            return;
+          } else if (mode === "y") {
+            setC(1);
+          }
+          setD(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags 3 setters that co-run on a single terminating branch", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode) {
+            setA(1);
+            setB(1);
+            setC(1);
+            return;
+          } else {
+            setD(1);
+            return;
+          }
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("counts a setter inside the guard test together with post-guard setters (the test always runs)", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          if (setA(1)) {
+            return;
+          }
+          setB(1);
+          setC(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("still flags a non-terminating braceless consequent falling through into trailing setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          if (mode) setA(1); else return;
+          setB(1);
+          setC(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("stays silent on a nested ternary where every path co-runs at most 2 setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode, value }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          mode ? (setA(1), setB(1)) : (value ? setC(1) : (setD(1), setA(2)));
+        }, [mode, value]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags a nested ternary path holding 3 setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          mode ? (setA(1), setB(1), setC(1)) : setD(1);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("still flags switch fall-through cases whose setters sum on one dispatch", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          switch (mode) {
+            case "a":
+              setA(1);
+              setB(1);
+            case "b":
+              setC(1);
+              break;
+            default:
+              break;
+          }
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+});
+
+describe("no-cascading-set-state — fuzz-hardening: nested function scope boundaries", () => {
+  it("stays silent when an if branch stores a 3-setter closure and the else runs 1 setter", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          if (mode) {
+            const onEvent = () => {
+              setA(1);
+              setB(1);
+              setC(1);
+            };
+            window.addEventListener("x", onEvent);
+          } else {
+            setD(1);
+          }
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags a synchronous IIFE holding 3 setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          (() => {
+            setA(1);
+            setB(1);
+            setC(1);
+          })();
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("stays silent for an async arrow declared and invoked inside a sync IIFE", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          (() => {
+            const load = async () => {
+              setA(1);
+              setB(1);
+              setC(1);
+            };
+            load();
+          })();
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("stays silent on try/catch branches that never co-run", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        const [d, setD] = useState(0);
+        useEffect(() => {
+          try {
+            setA(1);
+            setB(1);
+          } catch {
+            setC(1);
+            setD(1);
+          }
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags try setters compounding with a finally setter", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          try {
+            setA(1);
+            setB(1);
+          } catch {} finally {
+            setC(1);
+          }
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("still counts optional-call setters", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        const [c, setC] = useState(0);
+        useEffect(() => {
+          setA?.(1);
+          setB?.(2);
+          setC?.(3);
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("does not loop on mutually recursive helpers and stays silent", () => {
+    const result = runRule(
+      noCascadingSetState,
+      `function Widget({ mode }) {
+        const [a, setA] = useState(0);
+        const [b, setB] = useState(0);
+        useEffect(() => {
+          const ping = () => { pong(); setA(1); };
+          const pong = () => { ping(); setB(1); };
+          ping();
+        }, [mode]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+});
