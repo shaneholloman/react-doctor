@@ -32,12 +32,38 @@ describe("no-impure-state-updater", () => {
        };`,
     ],
     [
+      "a notification package subpath",
+      `import { useState } from "react";
+       import message from "antd/es/message";
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         const increment = () => setCount((previousCount) => {
+           message.error("Try again");
+           return previousCount + 1;
+         });
+         return <button onClick={increment}>{count}</button>;
+       };`,
+    ],
+    [
       "a DOM measurement",
       `import { useRef, useState } from "react";
        const Gallery = () => {
          const containerRef = useRef(null);
          const [width, setWidth] = useState(0);
          const measure = () => setWidth(() => containerRef.current.getBoundingClientRect().width);
+         return <div ref={containerRef} onClick={measure}>{width}</div>;
+       };`,
+    ],
+    [
+      "a DOM measurement through a local alias",
+      `import { useRef, useState } from "react";
+       const Gallery = () => {
+         const containerRef = useRef(null);
+         const [width, setWidth] = useState(0);
+         const measure = () => setWidth(() => {
+           const container = containerRef.current;
+           return container.getBoundingClientRect().width;
+         });
          return <div ref={containerRef} onClick={measure}>{width}</div>;
        };`,
     ],
@@ -77,6 +103,92 @@ describe("no-impure-state-updater", () => {
            return previousCount + 1;
          });
          return <button onClick={increment}>{count}</button>;
+       };`,
+    ],
+    [
+      "a named updater function",
+      `import { useState } from "react";
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         const updateCount = (previousCount) => {
+           localStorage.setItem("count", String(previousCount));
+           return previousCount + 1;
+         };
+         setCount(updateCount);
+         return count;
+       };`,
+    ],
+    [
+      "a deep captured assignment",
+      `import { useState } from "react";
+       const cache = { nested: { value: 0 } };
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           cache.nested.value = previousCount;
+           return previousCount;
+         });
+         return count;
+       };`,
+    ],
+    [
+      "a window timer",
+      `import { useState } from "react";
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           window.setTimeout(save, 0);
+           return previousCount;
+         });
+         return count;
+       };`,
+    ],
+    [
+      "globalThis storage mutation",
+      `import { useState } from "react";
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           globalThis.localStorage.setItem("count", String(previousCount));
+           return previousCount;
+         });
+         return count;
+       };`,
+    ],
+    [
+      "an aliased notification import",
+      `import { useState } from "react";
+       import { toast as notify } from "sonner";
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           notify.error("Try again");
+           return previousCount;
+         });
+         return count;
+       };`,
+    ],
+    [
+      "an aliased notification hook",
+      `import { useState } from "react";
+       import { useToast as useNotifier } from "@chakra-ui/react";
+       const Counter = () => {
+         const notifier = useNotifier();
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           notifier.error("Try again");
+           return previousCount;
+         });
+         return count;
+       };`,
+    ],
+    [
+      "a document DOM measurement",
+      `import { useState } from "react";
+       const Counter = () => {
+         const [width, setWidth] = useState(0);
+         setWidth(() => document.body.getBoundingClientRect().width);
+         return width;
        };`,
     ],
   ])("reports %s", (_name, code) => {
@@ -154,6 +266,60 @@ describe("no-impure-state-updater", () => {
            setCount((previousCount) => previousCount + 1);
          };
          return <button onClick={increment}>{count}</button>;
+       };`,
+    ],
+    [
+      "a pure userland geometry method",
+      `import { useState } from "react";
+       const geometry = { getBoundingClientRect: () => ({ width: 10 }) };
+       const Panel = () => {
+         const [width, setWidth] = useState(0);
+         setWidth(() => geometry.getBoundingClientRect().width);
+         return width;
+       };`,
+    ],
+    [
+      "an unrelated imported message object",
+      `import { message } from "./domain-message";
+       import { useState } from "react";
+       const Panel = () => {
+         const [value, setValue] = useState(0);
+         setValue(() => message.info());
+         return value;
+       };`,
+    ],
+    [
+      "a local hook with a notification-shaped name",
+      `import { useState } from "react";
+       const useToast = () => ({ success: () => 1 });
+       const Panel = () => {
+         const toast = useToast();
+         const [value, setValue] = useState(0);
+         setValue(() => toast.success());
+         return value;
+       };`,
+    ],
+    [
+      "a deferred callback passed to a userland map method",
+      `import { useState } from "react";
+       const scheduler = { map: (callback) => () => callback() };
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => {
+           const deferred = scheduler.map(() => localStorage.setItem("count", "1"));
+           return previousCount + Number(Boolean(deferred));
+         });
+         return count;
+       };`,
+    ],
+    [
+      "a shadowed window timer",
+      `import { useState } from "react";
+       const window = { setTimeout: () => 1 };
+       const Counter = () => {
+         const [count, setCount] = useState(0);
+         setCount((previousCount) => previousCount + window.setTimeout());
+         return count;
        };`,
     ],
   ])("stays silent for %s", (_name, code) => {
