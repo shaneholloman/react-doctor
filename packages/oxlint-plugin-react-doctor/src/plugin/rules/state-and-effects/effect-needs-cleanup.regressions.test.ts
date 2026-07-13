@@ -1820,6 +1820,534 @@ export const OutsideAction = ({ onOutsideAction, shouldRecurse }) => {
   });
 });
 
+interface RefOwnedKeepCase {
+  name: string;
+  modulePrelude?: string;
+  releaseStatement?: string;
+  unmountEffect?: string;
+  sessionAssignment?: string;
+  setupListener?: string;
+}
+
+describe("effect-needs-cleanup ref-owned retained listener cleanup", () => {
+  it("accepts exact ref-owned listeners released by a stable unmount cleanup", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = () => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (session) {
+      document.removeEventListener("mousemove", session.handleMouseMove);
+      document.removeEventListener("mouseup", session.handleMouseUp);
+      activeSessionRef.current = null;
+    }
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = (event) => console.log(event.clientX);
+    const handleMouseUp = () => stopResize();
+    activeSessionRef.current = { handleMouseMove, handleMouseUp };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts a block effect that returns the cleanup with other dependencies", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ cookieName }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => {
+    console.log(cookieName);
+    return stopResize;
+  }, [cookieName, stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = (event) => console.log(event.clientX);
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, []);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("flags a retained setup that can overwrite a previous ref-owned listener", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = () => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, []);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      name: "conditional pre-release",
+      setupPrefix: "if (enabled) stopResize();",
+      setupSuffix: "",
+    },
+    {
+      name: "deferred release",
+      setupPrefix: "queueMicrotask(stopResize);",
+      setupSuffix: "",
+    },
+    {
+      name: "nested callback release",
+      setupPrefix: "const releaseLater = () => stopResize(); releaseLater;",
+      setupSuffix: "",
+    },
+    {
+      name: "one-branch release",
+      setupPrefix: "if (enabled) stopResize(); else console.log('disabled');",
+      setupSuffix: "",
+    },
+    {
+      name: "release after storage",
+      setupPrefix: "",
+      setupSuffix: "stopResize();",
+    },
+  ])("keeps a $name setup diagnostic", ({ setupPrefix, setupSuffix }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ enabled }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    ${setupPrefix}
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    ${setupSuffix}
+    document.addEventListener("mousemove", handleMouseMove);
+  }, [enabled, stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("keeps multiple session storage sites conservative", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ enabled }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    const handleMouseMove = () => undefined;
+    if (enabled) {
+      stopResize();
+      activeSessionRef.current = { handleMouseMove };
+    } else {
+      activeSessionRef.current = { handleMouseMove };
+    }
+    document.addEventListener("mousemove", handleMouseMove);
+  }, [enabled, stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      name: "guarded setup after an early return",
+      setupPrefix: "if (!enabled) return; stopResize();",
+    },
+    {
+      name: "release in both branches",
+      setupPrefix: "if (enabled) stopResize(); else stopResize();",
+    },
+  ])("accepts $name", ({ setupPrefix }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ enabled }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    ${setupPrefix}
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, [enabled, stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      name: "react callback with changing dependencies",
+      cleanupDefinition: `const stopResize = useCallback(() => {
+        const session = activeSessionRef.current;
+        if (!session) return;
+        document.removeEventListener("mousemove", session.handleMouseMove);
+        activeSessionRef.current = null;
+      }, [enabled]);`,
+    },
+    {
+      name: "immutable local arrow function",
+      cleanupDefinition: `const stopResize = () => {
+        const session = activeSessionRef.current;
+        if (!session) return;
+        document.removeEventListener("mousemove", session.handleMouseMove);
+        activeSessionRef.current = null;
+      };`,
+    },
+    {
+      name: "local function declaration",
+      cleanupDefinition: `function stopResize() {
+        const session = activeSessionRef.current;
+        if (!session) return;
+        document.removeEventListener("mousemove", session.handleMouseMove);
+        activeSessionRef.current = null;
+      }`,
+    },
+  ])("accepts cleanup owned by a $name", ({ cleanupDefinition }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ enabled }) => {
+  const activeSessionRef = useRef(null);
+  ${cleanupDefinition}
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = (event) => console.log(event.clientX);
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, []);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts an unmount effect returning the cleanup from both branches", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ enabled }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => {
+    if (enabled) {
+      return stopResize;
+    } else {
+      return stopResize;
+    }
+  }, [enabled, stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, [stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("keeps an async cleanup function diagnostic", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = () => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(async () => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, [stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("keeps a loop-stored session registration diagnostic", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useEffect, useRef } from "react";
+export const useResizableColumns = ({ columns }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    for (const column of columns) {
+      const handleMouseMove = (event) => console.log(column, event.clientX);
+      activeSessionRef.current = { handleMouseMove };
+      document.addEventListener("mousemove", handleMouseMove);
+    }
+  }, [columns, stopResize]);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  const refOwnedKeepCases: RefOwnedKeepCase[] = [
+    { name: "no unmount effect", unmountEffect: "" },
+    {
+      name: "effect invocation without a returned cleanup",
+      unmountEffect: "useEffect(() => { stopResize(); }, [stopResize]);",
+    },
+    {
+      name: "conditional unmount return",
+      unmountEffect:
+        "useEffect(() => { if (enabled) return stopResize; return undefined; }, [enabled, stopResize]);",
+    },
+    {
+      name: "mismatched event name",
+      releaseStatement: 'document.removeEventListener("mouseup", session.handleMouseMove);',
+    },
+    {
+      name: "mismatched target",
+      releaseStatement: 'window.removeEventListener("mousemove", session.handleMouseMove);',
+    },
+    {
+      name: "mismatched stored callback",
+      releaseStatement: 'document.removeEventListener("mousemove", session.handleMouseUp);',
+      sessionAssignment: "activeSessionRef.current = { handleMouseMove, handleMouseUp: () => {} };",
+    },
+    {
+      name: "unrelated conditional removal",
+      releaseStatement:
+        'if (enabled) document.removeEventListener("mousemove", session.handleMouseMove);',
+    },
+    {
+      name: "unsafe ref overwrite",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove }; activeSessionRef.current = null;",
+    },
+    {
+      name: "stored handler overwrite",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove }; activeSessionRef.current.handleMouseMove = () => {};",
+    },
+    {
+      name: "stored handler deletion",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove }; delete activeSessionRef.current.handleMouseMove;",
+    },
+    {
+      name: "computed stored handler overwrite",
+      sessionAssignment:
+        'activeSessionRef.current = { handleMouseMove }; activeSessionRef.current["handleMouseMove"] = () => {};',
+    },
+    {
+      name: "computed stored handler deletion",
+      sessionAssignment:
+        'activeSessionRef.current = { handleMouseMove }; delete activeSessionRef.current["handleMouseMove"];',
+    },
+    {
+      name: "Object.assign stored handler overwrite",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove }; Object.assign(activeSessionRef.current, { handleMouseMove: () => {} });",
+    },
+    {
+      name: "trailing spread session storage",
+      sessionAssignment: "activeSessionRef.current = { handleMouseMove, ...previousSession };",
+    },
+    {
+      name: "ref escape to a session-resetting helper",
+      modulePrelude: "const resetSession = (ref) => {\n  ref.current = null;\n};",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove }; resetSession(activeSessionRef);",
+    },
+    {
+      name: "unrelated early-return before release",
+      releaseStatement:
+        'if (!enabled) return;\n    document.removeEventListener("mousemove", session.handleMouseMove);',
+    },
+    {
+      name: "duplicate stored handler keys",
+      sessionAssignment:
+        "activeSessionRef.current = { handleMouseMove, backupHandler: handleMouseMove };",
+    },
+    {
+      name: "partial removal of one of two listeners",
+      sessionAssignment:
+        "const handleMouseUp = () => undefined; activeSessionRef.current = { handleMouseMove, handleMouseUp };",
+      setupListener:
+        'document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUp);',
+    },
+    {
+      name: "named effect callback",
+      unmountEffect:
+        "const unmountEffect = () => stopResize; useEffect(unmountEffect, [stopResize]);",
+    },
+    {
+      name: "capture mismatch",
+      setupListener: 'document.addEventListener("mousemove", handleMouseMove, true);',
+    },
+    {
+      name: "non-global listener target",
+      releaseStatement: 'target.removeEventListener("mousemove", session.handleMouseMove);',
+      setupListener: 'target.addEventListener("mousemove", handleMouseMove);',
+    },
+    {
+      name: "non-literal event name",
+      releaseStatement: "document.removeEventListener(eventName, session.handleMouseMove);",
+      setupListener: "document.addEventListener(eventName, handleMouseMove);",
+    },
+  ];
+
+  it.each(refOwnedKeepCases)(
+    "keeps $name diagnostic",
+    ({
+      modulePrelude = "",
+      releaseStatement = 'document.removeEventListener("mousemove", session.handleMouseMove);',
+      unmountEffect = "useEffect(() => stopResize, [stopResize]);",
+      sessionAssignment = "activeSessionRef.current = { handleMouseMove };",
+      setupListener = 'document.addEventListener("mousemove", handleMouseMove);',
+    }) => {
+      const result = runRule(
+        effectNeedsCleanup,
+        `import { useCallback, useEffect, useRef } from "react";
+${modulePrelude}
+export const useResizableColumns = ({ enabled, eventName, target, previousSession }) => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    ${releaseStatement}
+    activeSessionRef.current = null;
+  }, []);
+  ${unmountEffect}
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = (event) => console.log(event.clientX);
+    ${sessionAssignment}
+    ${setupListener}
+  }, [stopResize]);
+  return startResize;
+};`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    {
+      name: "shadowed useEffect",
+      imports: "useCallback, useRef",
+      shadow: "const useEffect = (callback) => callback();",
+    },
+    {
+      name: "shadowed useRef",
+      imports: "useCallback, useEffect",
+      shadow: "const useRef = (value) => ({ current: value });",
+    },
+  ])("keeps cleanup through $name conservative", ({ imports, shadow }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { ${imports} } from "react";
+${shadow}
+export const useResizableColumns = () => {
+  const activeSessionRef = useRef(null);
+  const stopResize = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    document.removeEventListener("mousemove", session.handleMouseMove);
+    activeSessionRef.current = null;
+  }, []);
+  useEffect(() => stopResize, [stopResize]);
+  const startResize = useCallback(() => {
+    stopResize();
+    const handleMouseMove = () => undefined;
+    activeSessionRef.current = { handleMouseMove };
+    document.addEventListener("mousemove", handleMouseMove);
+  }, []);
+  return startResize;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+});
+
 describe("effect-needs-cleanup adversarial edge cases (observers / connections / retained functions)", () => {
   it("flags an observer registered through a nested helper with no cleanup", () => {
     const result = runRule(
