@@ -36,6 +36,86 @@ describe("a11y/click-events-have-key-events regressions", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
+  it("does not flag a class method propagation shield", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `class Modal extends React.Component {
+        handleBoxClick(event) { event.stopPropagation(); }
+        render() { return <div onClick={this.handleBoxClick}>{this.props.children}</div>; }
+      }`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each([
+    "this.handleBoxClick as React.MouseEventHandler<HTMLDivElement>",
+    "this.handleBoxClick!",
+  ])("does not flag a wrapped class method propagation shield: %s", (handlerExpression) => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `class Modal extends React.Component {
+        handleBoxClick = (event) => event.stopPropagation();
+        render() {
+          return <div onClick={${handlerExpression}}>Content</div>;
+        }
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags a class method that performs an action after blocking propagation", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `class Modal extends React.Component {
+        handleBoxClick(event) { event.stopPropagation(); this.props.openModal(); }
+        render() { return <div onClick={this.handleBoxClick as React.MouseEventHandler<HTMLDivElement>}>{this.props.children}</div>; }
+      }`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still flags a clickable row with an unrelated conditional checkbox", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `export const Row = ({ navigate, selectable, select }) => (
+        <tr onClick={navigate}>
+          {selectable && <input type="checkbox" onChange={select} />}
+        </tr>
+      );`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still distinguishes conditional sibling callbacks destructured from the same object", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `export const Popconfirm = (props) => {
+        const { onPopupClick, onCancel, showCancel } = props;
+        return (
+          <div onClick={onPopupClick}>
+            {showCancel && <Button onClick={onCancel}>Cancel</Button>}
+          </div>
+        );
+      };`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still flags a wrapper around a conditional similarly named userland component", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `export const Card = ({ openCard, showNavigation }) => (
+        <div onClick={() => openCard()}>
+          {showNavigation && (
+            <NavigationCard aria-label="Open" onClick={() => openCard()} />
+          )}
+        </div>
+      );`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it("still flags a click handler that forwards clicks to a hidden file input", () => {
     const result = runRule(
       clickEventsHaveKeyEvents,
@@ -252,6 +332,48 @@ describe("a11y/click-events-have-key-events regressions", () => {
       );`,
     );
     expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag the Marigold conditional edit trigger with the same action", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `import { Button } from "react-aria-components";
+      export const EditableCell = ({ disabled, setOpen, children }) => (
+        <div onClick={disabled ? undefined : () => setOpen(true)}>
+          <span>{children}</span>
+          {!disabled && (
+            <div>
+              <Button aria-label="Edit" onPress={() => setOpen(true)}>Edit</Button>
+            </div>
+          )}
+        </div>
+      );`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("does not flag a wrapper whose action is reachable through a conditional equivalent Button", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `export const Card = ({ openCard, showActions }) => (
+        <div onClick={() => openCard()}>
+          {showActions ? <Button aria-label="Open" onPress={() => openCard()}>Open</Button> : null}
+        </div>
+      );`,
+    );
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags a wrapper whose only child is a lowercase custom element", () => {
+    const result = runRule(
+      clickEventsHaveKeyEvents,
+      `export const Shell = ({ handleClick }) => (
+        <div onClick={handleClick}>
+          <sidebar-nav />
+        </div>
+      );`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
   });
 
   it("still flags a plain clickable div with static content", () => {

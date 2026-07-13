@@ -4,6 +4,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { getElementType } from "../../utils/get-element-type.js";
 import { getJsxAttributeName } from "../../utils/get-jsx-attribute-name.js";
+import { hasKeyboardActivatableDescendant } from "../../utils/has-keyboard-activatable-descendant.js";
 import { hasJsxPropIgnoreCase } from "../../utils/has-jsx-prop-ignore-case.js";
 import { isAbstractRole } from "../../utils/is-abstract-role.js";
 import { isHiddenFromScreenReader } from "../../utils/is-hidden-from-screen-reader.js";
@@ -141,12 +142,12 @@ export const noStaticElementInteractions = defineRule({
         // it's stopping a bubble. If EVERY active handler is a pure
         // blocker, the element is non-interactive and the rule should
         // pass through.
-        let hasNonBlockerHandler = false;
         let hasAnyHandler = false;
         let isKeyboardTarget: boolean | null = null;
         // Only the FIRST attribute per handler name counts (mirrors the
         // per-handler `hasJsxPropIgnoreCase` first-match this replaces).
         let seenHandlerNames: Set<string> | null = null;
+        let nonBlockerHandlerNamesLower: Set<string> | null = null;
         for (const attribute of node.attributes) {
           if (!isNodeOfType(attribute, "JSXAttribute")) continue;
           const attributeName = getJsxAttributeName(attribute.name);
@@ -162,12 +163,27 @@ export const noStaticElementInteractions = defineRule({
           }
           hasAnyHandler = true;
           if (!isPureEventBlockerHandler(attribute)) {
-            hasNonBlockerHandler = true;
-            break;
+            (nonBlockerHandlerNamesLower ??= new Set()).add(handlerNameLower);
           }
         }
         if (!hasAnyHandler) return;
-        if (!hasNonBlockerHandler) return;
+        if (!nonBlockerHandlerNamesLower) return;
+
+        // The equivalent-descendant guard can only vouch for the click:
+        // any OTHER non-blocker handler (`onMouseDown` drag, …) stays
+        // keyboard-unreachable even when the click action is delegated,
+        // so consult the guard only when `onClick` is the sole
+        // non-blocker handler.
+        const onClick =
+          nonBlockerHandlerNamesLower.size === 1 && nonBlockerHandlerNamesLower.has("onclick")
+            ? hasJsxPropIgnoreCase(node.attributes, "onClick")
+            : null;
+        if (
+          onClick &&
+          hasKeyboardActivatableDescendant(node.parent, onClick, context.scopes, context.settings)
+        ) {
+          return;
+        }
 
         const elementType = getElementType(node, context.settings);
         // Custom JSX elements pass through.
