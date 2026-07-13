@@ -22,6 +22,7 @@ const AUDITED_RULE_IDS = [
   "effect-needs-cleanup",
   "forward-ref-uses-ref",
   "interactive-supports-focus",
+  "js-hoist-regexp",
   "nextjs-no-polyfill-script",
   "no-adjust-state-on-prop-change",
   "no-aria-hidden-on-focusable",
