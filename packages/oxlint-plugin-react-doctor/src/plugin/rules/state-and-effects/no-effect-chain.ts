@@ -362,7 +362,7 @@ export const noEffectChain = defineRule({
       const effectInfos: EffectInfo[] = [];
       for (const effectCall of findTopLevelEffectCalls(componentBody)) {
         const callback = getEffectCallback(effectCall, context.scopes);
-        if (!callback) continue;
+        if (!callback || !isFunctionLike(callback) || callback.async) continue;
         const analysisFunctions = collectSynchronouslyInvokedFunctions(callback, context.scopes);
         const writtenStateNames = collectWrittenStateNamesInEffect(
           analysisFunctions,

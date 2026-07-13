@@ -28,6 +28,7 @@ const AUDITED_RULE_IDS = [
   "no-adjust-state-on-prop-change",
   "no-aria-hidden-on-focusable",
   "no-derived-state-effect",
+  "no-effect-chain",
   "no-impure-state-updater",
   "no-jsx-element-type",
   "no-locale-format-in-render",
