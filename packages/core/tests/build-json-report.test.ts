@@ -77,7 +77,9 @@ describe("buildJsonReport", () => {
       complete: true,
     });
     expect(report.diagnostics[0]).toMatchObject({
-      id: "src/App.tsx::12:1::react-doctor/no-array-index-as-key",
+      id: expect.stringMatching(
+        /^src\/App\.tsx::12:1::react-doctor\/no-array-index-as-key::[a-f0-9]{64}$/,
+      ),
       normalizedFilePath: "src/App.tsx",
       filePath: "/repo/src/../src/App.tsx",
       plugin: "react-doctor",
@@ -88,6 +90,53 @@ describe("buildJsonReport", () => {
     expect(report.diagnostics[0].tags).toEqual([...report.diagnostics[0].tags].sort());
     expect(report.diagnostics[0]).not.toHaveProperty("ruleId");
     expect(report.diagnostics[0]).not.toHaveProperty("location");
+  });
+
+  it("assigns distinct occurrence identities to same-site findings from one rule", () => {
+    const cleanupMessage =
+      "Your cleanup may read the wrong node since the ref `sidebarRef.current` can change before it runs.";
+    const loopMessage =
+      "`useEffect` calls `setMobile` with no dependency array, so it can loop forever & freeze the component.";
+    const report = buildJsonReport({
+      version: "1.2.3",
+      directory: "/repo",
+      mode: "full",
+      diff: null,
+      scans: [
+        {
+          directory: "/repo",
+          result: result({
+            diagnostics: [
+              {
+                ...errorDiagnostic,
+                filePath: "src/components/sidebar/CSidebar.tsx",
+                rule: "exhaustive-deps",
+                severity: "warning",
+                message: cleanupMessage,
+                line: 122,
+                column: 15,
+              },
+              {
+                ...errorDiagnostic,
+                filePath: "src/components/sidebar/CSidebar.tsx",
+                rule: "exhaustive-deps",
+                severity: "warning",
+                message: loopMessage,
+                line: 122,
+                column: 15,
+              },
+            ],
+          }),
+        },
+      ],
+      totalElapsedMilliseconds: 1200,
+    });
+
+    expect(report.diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
+      cleanupMessage,
+      loopMessage,
+    ]);
+    expect(new Set(report.diagnostics.map((diagnostic) => diagnostic.id)).size).toBe(2);
   });
 
   it("scopes diagnostic identities and affected file counts to workspace projects", () => {
@@ -124,8 +173,12 @@ describe("buildJsonReport", () => {
       "src/App.tsx",
     ]);
     expect(report.diagnostics.map((diagnostic) => diagnostic.id)).toEqual([
-      "packages/first/src/App.tsx::12:1::react-doctor/no-array-index-as-key",
-      "packages/second/src/App.tsx::12:1::react-doctor/no-array-index-as-key",
+      expect.stringMatching(
+        /^packages\/first\/src\/App\.tsx::12:1::react-doctor\/no-array-index-as-key::[a-f0-9]{64}$/,
+      ),
+      expect.stringMatching(
+        /^packages\/second\/src\/App\.tsx::12:1::react-doctor\/no-array-index-as-key::[a-f0-9]{64}$/,
+      ),
     ]);
     expect(new Set(report.diagnostics.map((diagnostic) => diagnostic.id)).size).toBe(2);
     expect(report.summary.affectedFileCount).toBe(2);
