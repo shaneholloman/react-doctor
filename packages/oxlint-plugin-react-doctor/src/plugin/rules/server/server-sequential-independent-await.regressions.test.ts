@@ -3,6 +3,126 @@ import { runRule } from "../../../test-utils/run-rule.js";
 import { serverSequentialIndependentAwait } from "./server-sequential-independent-await.js";
 
 describe("server-sequential-independent-await — regressions", () => {
+  it("flags an independent visible helper even when its name starts with initialize", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const loadPreferences = async (value) => { await Promise.resolve(); return value * 3; }; export async function load() { const profile = await initializeProfile(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("flags a visible Promise-returning initialize helper like its alpha rename", () => {
+    for (const helperName of ["initializeProfile", "loadProfile"]) {
+      const result = runRule(
+        serverSequentialIndependentAwait,
+        `const ${helperName} = (value: number): Promise<number> => Promise.resolve(value * 2); const loadPreferences = (value: number): Promise<number> => Promise.resolve(value * 3); export async function load() { const profile = await ${helperName}(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps an awaited synchronous initialize helper as a gate", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `const initializeProfile = (value: number): number => value * 2; const loadPreferences = async (): Promise<number> => 3; export async function load() { const profile = await initializeProfile(2); const preferences = await loadPreferences(); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["initializeProfile", "setupProfile", "requireProfile"])(
+    "flags the pure local %s helper without trusting its leading verb",
+    (helperName) => {
+      const result = runRule(
+        serverSequentialIndependentAwait,
+        `const ${helperName} = async (value) => { await Promise.resolve(); return value * 2; }; const loadPreferences = async (value) => { await Promise.resolve(); return value * 3; }; export async function load() { const profile = await ${helperName}(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("follows an alias to a pure local helper whose original name is a gate", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const initializeAlias = initializeProfile; export async function load() { const profile = await initializeAlias(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("follows an object shorthand alias to a pure local helper gate", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { initializeProfile }; export async function load() { const profile = await helpers.initializeProfile(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a reassigned object shorthand helper gate sequential", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `let initialized = false; const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { initializeProfile }; helpers.initializeProfile = async (value) => { initialized = true; return value; }; export async function load() { const profile = await helpers.initializeProfile(2); const preferences = await loadPreferences(3); return { profile, preferences, initialized }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each([
+    `Object.assign(helpers, { initializeProfile: async (value) => { await Promise.resolve(); initialized = true; return value; } });`,
+    `Object.defineProperty(helpers, "initializeProfile", { value: async (value) => { await Promise.resolve(); initialized = true; return value; } });`,
+    `const install = (target) => { target.initializeProfile = async (value) => { await Promise.resolve(); initialized = true; return value; }; }; install(helpers);`,
+  ])("keeps an escaped and overwritten initialize helper sequential", (overwrite) => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `let initialized = false; const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { initializeProfile }; ${overwrite} const loadPreferences = async () => initialized; export async function load() { const profile = await helpers.initializeProfile(2); const preferences = await loadPreferences(); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("keeps an object shorthand helper gate mutated through a mutable alias sequential", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `let initialized = false; const initializeProfile = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { initializeProfile }; let holder = helpers; holder.initializeProfile = async (value) => { initialized = true; return value; }; export async function load() { const profile = await helpers.initializeProfile(2); const preferences = await loadPreferences(3); return { profile, preferences, initialized }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("keeps a mutated non-heuristic object helper sequential", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `let initialized = false; const run = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { run }; let holder = helpers; holder.run = async (value) => { initialized = true; return value; }; export async function load() { const profile = await helpers.run(2); const preferences = await loadPreferences(3); return { profile, preferences, initialized }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags object helpers when only an unrelated alias is mutated", () => {
+    const result = runRule(
+      serverSequentialIndependentAwait,
+      `const run = async (value) => { await Promise.resolve(); return value * 2; }; const helpers = { run }; const otherHelpers = { run }; let holder = otherHelpers; holder.run = async (value) => value + 1; export async function load() { const profile = await helpers.run(2); const preferences = await loadPreferences(3); return { profile, preferences }; }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("keeps opaque and visibly stateful initialization gates sequential", () => {
+    for (const code of [
+      `export async function load(database) { const connection = await database.initialize(); const rows = await database.loadRows(); return { connection, rows }; }`,
+      `let session; const initializeSession = async (value) => { await Promise.resolve(); session = value; return session; }; export async function load() { const current = await initializeSession(2); const rows = await loadRows(); return { current, rows }; }`,
+      `const initializeSession = async (value) => { await Promise.resolve(); if (!value) throw new Error("missing"); return value; }; export async function load() { const current = await initializeSession(2); const rows = await loadRows(); return { current, rows }; }`,
+    ]) {
+      const result = runRule(serverSequentialIndependentAwait, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    }
+  });
+
   it("stays silent when the first await is an auth/permission gate", () => {
     const result = runRule(
       serverSequentialIndependentAwait,

@@ -3,6 +3,127 @@ import { runRule } from "../../../test-utils/run-rule.js";
 import { asyncAwaitInLoop } from "./async-await-in-loop.js";
 
 describe("js-performance/async-await-in-loop — regressions", () => {
+  it("flags an independent visible helper even when it is named query", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `const query = async (item) => { await Promise.resolve(); return item * 2; }; async function load(items) { for (const item of items) { await query(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("flags a visible Promise-returning query helper like its alpha rename", () => {
+    for (const helperName of ["query", "loadItem"]) {
+      const result = runRule(
+        asyncAwaitInLoop,
+        `const ${helperName} = (item: number): Promise<number> => Promise.resolve(item * 2); async function load(items: number[]) { for (const item of items) { await ${helperName}(item); } }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    }
+  });
+
+  it.each(["query", "execute", "wait"])(
+    "flags the pure local %s spelling without trusting its name",
+    (helperName) => {
+      const result = runRule(
+        asyncAwaitInLoop,
+        `const ${helperName} = async (item) => { await Promise.resolve(); return item * 2; }; async function load(items) { for (const item of items) { await ${helperName}(item); } }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("follows a const alias to an independent local helper", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `const query = async (item) => { await Promise.resolve(); return item * 2; }; const run = query; async function load(items) { for (const item of items) { await run(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("flags an independent statically computed local object helper", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `const helpers = { query: async (item) => { await Promise.resolve(); return item * 2; } }; async function load(items) { for (const item of items) { await helpers["query"](item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("follows an object shorthand alias to an independent local helper", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `const query = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { query }; async function load(items) { for (const item of items) { await helpers.query(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a dynamically reassigned object shorthand helper sequential", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `let cursor = 0; const query = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { query }; helpers[getPropertyName()] = async (item) => { cursor += item; return cursor; }; async function load(items) { for (const item of items) { await helpers.query(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each([
+    `Object.assign(helpers, { query: async (item) => { const previous = cursor; await Promise.resolve(); cursor = previous + item; return cursor; } });`,
+    `Object.defineProperty(helpers, "query", { value: async (item) => { const previous = cursor; await Promise.resolve(); cursor = previous + item; return cursor; } });`,
+    `const install = (target) => { target.query = async (item) => { const previous = cursor; await Promise.resolve(); cursor = previous + item; return cursor; }; }; install(helpers);`,
+  ])("keeps an escaped and overwritten query helper sequential", (overwrite) => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `let cursor = 0; const query = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { query }; ${overwrite} async function load(items) { for (const item of items) { await helpers.query(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("keeps an object shorthand helper mutated through a mutable alias sequential", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `let cursor = 0; const query = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { query }; let holder = helpers; holder.query = async (item) => { cursor += item; return cursor; }; async function load(items) { for (const item of items) { await helpers.query(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("keeps a mutated non-heuristic object helper sequential", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `let cursor = 0; const run = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { run }; let holder = helpers; holder.run = async (item) => { cursor += item; return cursor; }; async function load(items) { for (const item of items) { await helpers.run(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("still flags object helpers when only an unrelated alias is mutated", () => {
+    const result = runRule(
+      asyncAwaitInLoop,
+      `const run = async (item) => { await Promise.resolve(); return item * 2; }; const helpers = { run }; const otherHelpers = { run }; let holder = otherHelpers; holder.run = async (item) => item + 1; async function load(items) { for (const item of items) { await helpers.run(item); } }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("keeps opaque and visibly stateful query calls intentionally sequential", () => {
+    for (const code of [
+      `async function load(database, items) { for (const item of items) { await database.query(item); } }`,
+      `let cursor = 0; const query = async (item) => { await Promise.resolve(); cursor += item; return cursor; }; async function load(items) { for (const item of items) { await query(item); } }`,
+      `const Promise = { resolve: async () => undefined }; const query = async (item) => { await Promise.resolve(); return item * 2; }; async function load(items) { for (const item of items) { await query(item); } }`,
+      `const query = async (item) => { await Promise.resolve(); if (item < 0) throw new Error("invalid"); return item * 2; }; async function load(items) { for (const item of items) { await query(item); } }`,
+    ]) {
+      const result = runRule(asyncAwaitInLoop, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    }
+  });
+
   it("stays silent on a loop-carried dependency flowing through push + read", () => {
     const result = runRule(
       asyncAwaitInLoop,

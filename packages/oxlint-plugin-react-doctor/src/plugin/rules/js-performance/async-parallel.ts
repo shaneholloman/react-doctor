@@ -10,6 +10,8 @@ import { defineRule } from "../../utils/define-rule.js";
 import { isFunctionLike } from "../../utils/is-function-like.js";
 import { normalizeFilename } from "../../utils/normalize-filename.js";
 import { getCalleeIdentifierTrail } from "../../utils/get-callee-identifier-trail.js";
+import { getOrderIndependentLocalFunction } from "../../utils/get-order-independent-local-function.js";
+import { hasPossibleStaticMemberCallWrite } from "../../utils/has-static-property-write-before.js";
 import { isTestLibraryImportSource } from "../../utils/is-test-library-import-source.js";
 import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
@@ -63,6 +65,18 @@ const isBareExpressionAwait = (statement: EsTreeNode): boolean =>
   isNodeOfType(statement, "ExpressionStatement") &&
   isNodeOfType(statement.expression, "AwaitExpression");
 
+const hasOrderIndependentBareAwaitArguments = (callExpression: EsTreeNode): boolean => {
+  const unwrappedCallExpression = stripParenExpression(callExpression);
+  if (!isNodeOfType(unwrappedCallExpression, "CallExpression")) return false;
+  return unwrappedCallExpression.arguments.every((argument) => {
+    if (isNodeOfType(argument, "SpreadElement")) return false;
+    const unwrappedArgument = stripParenExpression(argument);
+    return (
+      isNodeOfType(unwrappedArgument, "Identifier") || isNodeOfType(unwrappedArgument, "Literal")
+    );
+  });
+};
+
 // Awaiting something that is not a call (`await feManifestPromise`)
 // settles work that already started — sequencing it costs no wall time,
 // so there is nothing to parallelize.
@@ -84,13 +98,26 @@ const isNonCallAwait = (statement: EsTreeNode): boolean => {
 // awaits is enough to mark the whole sequence as deliberately
 // serialized — collapsing it into `Promise.all([...])` would change
 // observable behavior.
-const sequenceContainsSerializationSignal = (statements: EsTreeNode[]): boolean => {
+const sequenceContainsSerializationSignal = (
+  statements: EsTreeNode[],
+  context: RuleContext,
+): boolean => {
+  let bareAwaitFunction: EsTreeNode | null = null;
   for (const statement of statements) {
-    if (isBareExpressionAwait(statement)) return true;
     if (isNonCallAwait(statement)) return true;
     const awaitedCall = getAwaitedCall(statement);
+    if (awaitedCall && hasPossibleStaticMemberCallWrite(awaitedCall, context.scopes)) return true;
+    const orderIndependentFunction = awaitedCall
+      ? getOrderIndependentLocalFunction(awaitedCall, context.scopes)
+      : null;
+    if (isBareExpressionAwait(statement)) {
+      if (orderIndependentFunction === null) return true;
+      if (!awaitedCall || !hasOrderIndependentBareAwaitArguments(awaitedCall)) return true;
+      if (bareAwaitFunction !== null && bareAwaitFunction !== orderIndependentFunction) return true;
+      bareAwaitFunction = orderIndependentFunction;
+    }
     if (isOrderedUiFlowAwait(awaitedCall)) return true;
-    if (isIntentionalSequencingAwait(awaitedCall)) return true;
+    if (isIntentionalSequencingAwait(awaitedCall) && orderIndependentFunction === null) return true;
   }
   return false;
 };
@@ -188,7 +215,7 @@ export const asyncParallel = defineRule({
 
         const flushConsecutiveAwaits = (): void => {
           if (consecutiveAwaitStatements.length >= SEQUENTIAL_AWAIT_THRESHOLD) {
-            if (!sequenceContainsSerializationSignal(consecutiveAwaitStatements)) {
+            if (!sequenceContainsSerializationSignal(consecutiveAwaitStatements, context)) {
               reportIfIndependent(consecutiveAwaitStatements, context);
             }
           }

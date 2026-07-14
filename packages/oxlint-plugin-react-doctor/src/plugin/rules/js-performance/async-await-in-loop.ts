@@ -5,6 +5,8 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { findTransparentExpressionRoot } from "../../utils/find-transparent-expression-root.js";
+import { getOrderIndependentLocalFunction } from "../../utils/get-order-independent-local-function.js";
+import { hasPossibleStaticMemberCallWrite } from "../../utils/has-static-property-write-before.js";
 import { isFunctionLike } from "../../utils/is-function-like.js";
 import { isInlineFunctionExpression } from "../../utils/is-inline-function-expression.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
@@ -56,13 +58,22 @@ const isIntentionalSequencingCallee = (callee: EsTreeNode | null | undefined): b
   return false;
 };
 
-const isAwaitingSleepLikeCall = (awaitNode: EsTreeNode): boolean => {
+const isAwaitingSleepLikeCall = (awaitNode: EsTreeNode, context: RuleContext): boolean => {
   if (!isNodeOfType(awaitNode, "AwaitExpression")) return false;
   const argument = awaitNode.argument;
   if (!argument) return false;
   if (!isNodeOfType(argument, "CallExpression")) return false;
+  if (getOrderIndependentLocalFunction(argument, context.scopes) !== null) return false;
   return isIntentionalSequencingCallee(argument.callee);
 };
+
+const isAwaitingPossiblyMutatedMemberCall = (
+  awaitNode: EsTreeNode,
+  context: RuleContext,
+): boolean =>
+  isNodeOfType(awaitNode, "AwaitExpression") &&
+  Boolean(awaitNode.argument) &&
+  hasPossibleStaticMemberCallWrite(awaitNode.argument, context.scopes);
 
 const PROMISE_CONCURRENCY_METHODS = new Set(["all", "allSettled", "race", "any"]);
 
@@ -127,8 +138,9 @@ const isAwaitingManualPromiseWait = (awaitNode: EsTreeNode): boolean => {
   return isWaitLike;
 };
 
-const isIntentionallySequentialAwait = (awaitNode: EsTreeNode): boolean =>
-  isAwaitingSleepLikeCall(awaitNode) ||
+const isIntentionallySequentialAwait = (awaitNode: EsTreeNode, context: RuleContext): boolean =>
+  isAwaitingPossiblyMutatedMemberCall(awaitNode, context) ||
+  isAwaitingSleepLikeCall(awaitNode, context) ||
   isAwaitingPromiseConcurrencyCall(awaitNode) ||
   isAwaitingManualPromiseWait(awaitNode);
 
@@ -485,13 +497,16 @@ const getLoopLabelName = (loopNode: EsTreeNode): string | null => {
 // `Promise.all` over a batch, a DB transaction step — marks the WHOLE loop
 // as intentionally paced: the author already chose sequential execution,
 // so parallelizing the remaining awaits would change semantics.
-const loopBodyHasIntentionallySequentialAwait = (block: EsTreeNode): boolean => {
+const loopBodyHasIntentionallySequentialAwait = (
+  block: EsTreeNode,
+  context: RuleContext,
+): boolean => {
   let foundIntentional = false;
   walkAst(block, (child: EsTreeNode): boolean | void => {
     if (foundIntentional) return false;
     if (isInlineFunctionExpression(child) || isNodeOfType(child, "FunctionDeclaration"))
       return false;
-    if (isNodeOfType(child, "AwaitExpression") && isIntentionallySequentialAwait(child)) {
+    if (isNodeOfType(child, "AwaitExpression") && isIntentionallySequentialAwait(child, context)) {
       foundIntentional = true;
       return false;
     }
@@ -669,7 +684,7 @@ export const asyncAwaitInLoop = defineRule({
     ): void => {
       const loopBody = loopNode.body;
       if (!loopBody) return;
-      if (loopBodyHasIntentionallySequentialAwait(loopBody)) return;
+      if (loopBodyHasIntentionallySequentialAwait(loopBody, context)) return;
       if (
         (isNodeOfType(loopNode, "WhileStatement") || isNodeOfType(loopNode, "DoWhileStatement")) &&
         isLoopTestDependentOnBodyState(loopNode.test, loopBody)
