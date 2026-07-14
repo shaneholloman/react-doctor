@@ -8,13 +8,14 @@ import { isDescendantScope } from "../../semantic/scope-analysis.js";
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
+import { findForwardedFreshHookDependencies } from "../../utils/find-forwarded-fresh-hook-dependencies.js";
 import { getStaticTemplateLiteralValue } from "../../utils/get-static-template-literal-value.js";
 import { isAstNode } from "../../utils/is-ast-node.js";
 import { isReactComponentOrHookName } from "../../utils/is-react-component-or-hook-name.js";
 import { isReactApiCall } from "../../utils/is-react-api-call.js";
 import { isReactHocCallbackArgument } from "../../utils/is-react-hoc-callback-argument.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
-import { REACT_HOC_NAMES } from "../../constants/react.js";
+import { EFFECT_HOOK_NAMES, REACT_HOC_NAMES } from "../../constants/react.js";
 import {
   getHookName,
   isOutsideAllFunctions,
@@ -27,6 +28,7 @@ import {
   buildComplexDepMessage,
   buildDuplicateDepMessage,
   buildEffectEventDepMessage,
+  buildForwardedUnstableDepMessage,
   buildLiteralDepMessage,
   buildMissingCallbackMessage,
   buildMissingDepArrayMessage,
@@ -1148,6 +1150,17 @@ If the missing value is recreated every render, move it inside the hook or stabi
 
     return {
       CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
+        for (const finding of findForwardedFreshHookDependencies(
+          node,
+          context,
+          EFFECT_HOOK_NAMES,
+        )) {
+          context.report({
+            node: finding.reportNode,
+            message: buildForwardedUnstableDepMessage(finding.bindingName),
+          });
+        }
+
         const hookName = getHookName(node.callee, context.scopes);
         if (!hookName || !isHookOfInterest(hookName, node.callee)) return;
         if (
