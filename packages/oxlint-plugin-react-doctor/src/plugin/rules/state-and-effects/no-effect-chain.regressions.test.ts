@@ -978,4 +978,259 @@ describe("no-effect-chain — regressions", () => {
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics).toHaveLength(1);
   });
+
+  it("stays silent when the downstream effect focuses a node mounted after expansion", () => {
+    const result = runRule(
+      noEffectChain,
+      `function AccessibleNavTree({ activeId }) {
+        const [expanded, setExpanded] = useState(new Set());
+        const itemRefs = useRef(new Map());
+        useEffect(() => {
+          setExpanded(findAncestorPath(activeId));
+        }, [activeId]);
+        useEffect(() => {
+          itemRefs.current.get(activeId)?.focus();
+        }, [activeId, expanded]);
+        return expanded.has(activeId) ? <button ref={node => itemRefs.current.set(activeId, node)} /> : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("follows transparent wrappers around a ref-backed DOM map", () => {
+    const result = runRule(
+      noEffectChain,
+      `function AccessibleNavTree({ activeId }) {
+        const [expanded, setExpanded] = useState(new Set());
+        const itemRefs = useRef(new Map());
+        useEffect(() => {
+          setExpanded(findAncestorPath(activeId));
+        }, [activeId]);
+        useEffect(() => {
+          itemRefs.current!.get(activeId)?.focus();
+        }, [activeId, expanded]);
+        return expanded.has(activeId)
+          ? <button ref={node => itemRefs.current!.set(activeId, node)} />
+          : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("recognizes a defaulted intrinsic ref callback parameter", () => {
+    const result = runRule(
+      noEffectChain,
+      `function AccessibleNavTree({ activeId }) {
+        const [expanded, setExpanded] = useState(new Set());
+        const itemRefs = useRef(new Map());
+        useEffect(() => {
+          setExpanded(findAncestorPath(activeId));
+        }, [activeId]);
+        useEffect(() => {
+          itemRefs.current.get(activeId)?.focus();
+        }, [activeId, expanded]);
+        return expanded.has(activeId)
+          ? <button ref={(node = null) => itemRefs.current.set(activeId, node)} />
+          : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("allows ref-backed DOM maps to delete unmounted nodes", () => {
+    const result = runRule(
+      noEffectChain,
+      `function AccessibleNavTree({ activeId }) {
+        const [expanded, setExpanded] = useState(new Set());
+        const itemRefs = useRef(new Map());
+        useEffect(() => {
+          setExpanded(findAncestorPath(activeId));
+        }, [activeId]);
+        useEffect(() => {
+          itemRefs.current.get(activeId)?.focus();
+        }, [activeId, expanded]);
+        return expanded.has(activeId) ? (
+          <button
+            ref={node => {
+              if (node) itemRefs.current.set(activeId, node);
+              else itemRefs.current.delete(activeId);
+            }}
+          />
+        ) : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("allows read-only access to a ref-backed DOM map", () => {
+    const result = runRule(
+      noEffectChain,
+      `function AccessibleNavTree({ activeId }) {
+        const [expanded, setExpanded] = useState(new Set());
+        const itemRefs = useRef(new Map());
+        const hasActiveRef = itemRefs.current.has(activeId);
+        const refCount = itemRefs.current.size;
+        useEffect(() => {
+          setExpanded(findAncestorPath(activeId));
+        }, [activeId]);
+        useEffect(() => {
+          itemRefs.current.get(activeId)?.focus();
+        }, [activeId, expanded]);
+        return expanded.has(activeId) ? (
+          <>
+            <button ref={node => itemRefs.current.set(activeId, node)} />
+            <output>{hasActiveRef ? refCount : 0}</output>
+          </>
+        ) : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["focus", "scrollIntoView", "select", "getBoundingClientRect"])(
+    "treats committed DOM %s calls as external synchronization",
+    (methodName) => {
+      const result = runRule(
+        noEffectChain,
+        `function CommittedDomSync({ activeId }) {
+          const [isMounted, setIsMounted] = useState(false);
+          const nodeRef = useRef(null);
+          useEffect(() => { setIsMounted(true); }, [activeId]);
+          useEffect(() => { nodeRef.current?.${methodName}(); }, [isMounted]);
+          return isMounted ? <input ref={nodeRef} /> : null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    },
+  );
+
+  it.each(['["focus"]', "[`scrollIntoView`]", "focus"])(
+    "follows static DOM method spelling %s through a synchronous helper",
+    (methodAccess) => {
+      const result = runRule(
+        noEffectChain,
+        `function CommittedDomSync({ activeId }) {
+          const [isMounted, setIsMounted] = useState(false);
+          const nodeRef = useRef(null);
+          const synchronizeNode = () => nodeRef.current?.${methodAccess}();
+          useEffect(() => { setIsMounted(true); }, [activeId]);
+          useEffect(() => { synchronizeNode(); }, [isMounted]);
+          return isMounted ? <input ref={nodeRef} /> : null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    },
+  );
+
+  it("treats measurement on a React Native host ref as external synchronization", () => {
+    const result = runRule(
+      noEffectChain,
+      `import { View } from "react-native";
+      function NativeMeasurement({ activeId }) {
+        const [isMounted, setIsMounted] = useState(false);
+        const viewRef = useRef(null);
+        useEffect(() => { setIsMounted(true); }, [activeId]);
+        useEffect(() => {
+          viewRef.current?.measure(() => undefined);
+        }, [isMounted]);
+        return isMounted ? <View ref={viewRef} /> : null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(["focus", "measure", "select"])(
+    "keeps a non-DOM %s method conservative",
+    (methodName) => {
+      const result = runRule(
+        noEffectChain,
+        `function DerivedSelection({ controller }) {
+          const [source, setSource] = useState(0);
+          const controllerRef = useRef(controller);
+          useEffect(() => { setSource(1); }, []);
+          useEffect(() => { controllerRef.current.${methodName}(source); }, [source]);
+          return null;
+        }`,
+      );
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toHaveLength(1);
+    },
+  );
+
+  it("keeps a ref shared with a custom component conservative", () => {
+    const result = runRule(
+      noEffectChain,
+      `function ImperativeControllerChain() {
+        const [source, setSource] = useState(0);
+        const controllerRef = useRef(null);
+        useEffect(() => { setSource(1); }, []);
+        useEffect(() => { controllerRef.current?.focus(); }, [source]);
+        return (
+          <>
+            <input ref={controllerRef} />
+            <Controller ref={controllerRef} />
+          </>
+        );
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("keeps a ref-backed collection with non-DOM initial values conservative", () => {
+    const result = runRule(
+      noEffectChain,
+      `function ImperativeControllerChain({ controller }) {
+        const [source, setSource] = useState(0);
+        const controllerRefs = useRef(new Map([["primary", controller]]));
+        useEffect(() => { setSource(1); }, []);
+        useEffect(() => { controllerRefs.current.get("primary")?.focus(); }, [source]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("still reports when committed DOM work is mixed with a local state update", () => {
+    const result = runRule(
+      noEffectChain,
+      `function MixedChain() {
+        const [isMounted, setIsMounted] = useState(false);
+        const [status, setStatus] = useState("idle");
+        const nodeRef = useRef(null);
+        useEffect(() => { setIsMounted(true); }, []);
+        useEffect(() => {
+          nodeRef.current?.focus();
+          setStatus(isMounted ? "ready" : "idle");
+        }, [isMounted]);
+        return <div>{status}</div>;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("keeps a dynamic method name conservative", () => {
+    const result = runRule(
+      noEffectChain,
+      `function DynamicMethodChain({ methodName }) {
+        const [isMounted, setIsMounted] = useState(false);
+        const nodeRef = useRef(null);
+        useEffect(() => { setIsMounted(true); }, []);
+        useEffect(() => { nodeRef.current?.[methodName](); }, [isMounted, methodName]);
+        return null;
+      }`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
 });
