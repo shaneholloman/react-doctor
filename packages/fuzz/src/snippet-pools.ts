@@ -245,6 +245,11 @@ export const LIBRARY_SNIPPET_POOL = [
 export const MODULE_SCOPE_SNIPPET_POOL = [
   `import { ImageResponse as FuzzImageResponse } from "next/og"; export const FuzzPostcardLayout = ({ url }) => <img src={url} alt="" />; export const FuzzPostcardRoute = () => new FuzzImageResponse(FuzzPostcardLayout({ url }));`,
   `export function useFuzzCountryOptions() { return []; } export function FuzzCountryPickerSheet() { return <div />; }`,
+  `import { test as fuzzTest } from "vitest"; import { FuzzProductComponent } from "./product-component"; fuzzTest("forwards a local fixture", () => { render(<FuzzProductComponent fixture={<img src="/fixture.png" />} />); });`,
+  `import { test as fuzzTableTest } from "vitest"; import { FuzzTableProduct } from "./table-product"; fuzzTableTest.only.each([["image"]])("forwards %s content", () => { render(<FuzzTableProduct fixture={<img src="/fixture.png" />} />); });`,
+  `import { test as fuzzTaggedTableTest } from "vitest"; import { FuzzTaggedTableProduct } from "./tagged-table-product"; fuzzTaggedTableTest.each\`kind | fixture\nimage | image\`("forwards $kind content", () => { render(<FuzzTaggedTableProduct fixture={<img src="/fixture.png" />} />); });`,
+  `import { test as fuzzProviderTest } from "vitest"; import { FuzzProductProvider } from "./product-provider"; fuzzProviderTest("renders direct content", () => { render(<FuzzProductProvider><img src="/subject.png" /></FuzzProductProvider>); });`,
+  `import { test as fuzzProviderChildrenTest } from "vitest"; import { FuzzChildrenProvider } from "./children-provider"; fuzzProviderChildrenTest("renders direct children", () => { render(<FuzzChildrenProvider children={<img src="/subject.png" />} />); });`,
   `import { motion as FuzzMotion } from "framer-motion"; export const FuzzMotionPanel = () => <FuzzMotion.div animate={{ x: 120 }}>moving</FuzzMotion.div>;`,
   `import { createRoot as mountFuzzRoot } from "react-dom/client"; export const FuzzRootApp = () => <div />; export const fuzzRootConfig = getConfig(); const fuzzApplicationRoot = mountFuzzRoot(document.body); fuzzApplicationRoot.render(<FuzzRootApp />);`,
   `const GLOBAL_CACHE = new Map<string, unknown>();`,
