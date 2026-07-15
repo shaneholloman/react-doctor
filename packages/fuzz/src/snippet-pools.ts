@@ -433,6 +433,8 @@ export const JSX_LEAF_POOL = [
   `<input type="number" min={0} max={100} value={state} aria-valuemin={0} aria-valuemax={100} aria-valuenow={state} onChange={handleAmount} />`,
   `<input type="number" aria-expanded={isOpen} />`,
   `<textarea readOnly value={String(value)} />`,
+  `<div role="textbox" contentEditable={!loading} onKeyDown={handleKeyDown} />`,
+  `<div role="textbox" contentEditable={false} onKeyDown={handleKeyDown} />`,
   `<ThemeContext.Provider value={{ mode: state, toggle: handle }}>{state}</ThemeContext.Provider>`,
   `<ItemsContext.Provider value={items}>{state}</ItemsContext.Provider>`,
   `{createPortal(<div>{state}</div>, document.body)}`,
