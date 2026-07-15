@@ -898,7 +898,7 @@ export const controlHasAssociatedLabel = defineRule({
         // callbacks (render props) may never render, so they don't
         // register.
         if (
-          tagName === LABEL_ELEMENT &&
+          rendersLabelElement(tagName, opening) &&
           hasAccessibleLabelText(node, checkContext) &&
           !isInsideJsxAttribute(node)
         ) {
@@ -906,7 +906,9 @@ export const controlHasAssociatedLabel = defineRule({
           for (const htmlForKey of getAttributeMatchKeys(htmlForAttribute)) {
             labelHtmlForKeys.add(htmlForKey);
           }
-          collectLabelEmbeddedNames(node, 1, checkContext, labelEmbeddedNames);
+          if (tagName === LABEL_ELEMENT) {
+            collectLabelEmbeddedNames(node, 1, checkContext, labelEmbeddedNames);
+          }
         }
 
         if (DEFAULT_IGNORE_ELEMENTS.includes(tagName)) return;
