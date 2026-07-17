@@ -231,6 +231,7 @@ const buildClassComponent: SnippetBuilder = (random) => {
   ]);
   return [
     `export class ${componentName} extends React.Component {`,
+    `  state = { top: 0 };`,
     `  containerRef = React.createRef();`,
     `  handleScroll = () => { this.setState({ top: window.scrollY }); };`,
     `  componentDidMount() {`,
@@ -244,6 +245,9 @@ const buildClassComponent: SnippetBuilder = (random) => {
           `  }`,
         ].join("\n")
       : ``,
+    `  componentDidUpdate() {`,
+    `    this.setState({ top: window.scrollY });`,
+    `  }`,
     `  render(${renderParameters}) {`,
     `    return <div ref={this.containerRef}>{this.props.children}</div>;`,
     `  }`,
