@@ -27,9 +27,13 @@ import { getStaticPropertyKeyName } from "../../utils/get-static-property-key-na
 import { isEventHandlerAttribute } from "../../utils/is-event-handler-attribute.js";
 import { isAstDescendant } from "../../utils/is-ast-descendant.js";
 import { isHookCall } from "../../utils/is-hook-call.js";
+import { isReactHookName } from "../../utils/is-react-hook-name.js";
 import { isReactApiCall } from "../../utils/is-react-api-call.js";
 import { readStaticBoolean } from "../../utils/read-static-boolean.js";
-import { hasReactRefCurrentOrigin, resolveReactRefSymbol } from "../../utils/react-ref-origin.js";
+import {
+  resolveReactRefCurrentOriginSymbol,
+  resolveReactRefSymbol,
+} from "../../utils/react-ref-origin.js";
 import { stripParenExpression } from "../../utils/strip-paren-expression.js";
 import { walkAst } from "../../utils/walk-ast.js";
 import { walkInsideStatementBlocks } from "../../utils/walk-inside-statement-blocks.js";
@@ -1361,44 +1365,48 @@ const callbackReturnsCleanupForUsage = (
   return doMatchingNodesCoverEveryPathFromFunctionEntry(callback, matchingCleanupReturns, context);
 };
 
-const findDirectHandleGuardForRelease = (
-  releaseCall: EsTreeNode,
-  owner: EsTreeNode,
-  usage: SubscribeLikeUsage,
+const doesTestRequireLiveExpressionKey = (
+  test: EsTreeNode,
+  expressionKey: string,
   context: RuleContext,
-): EsTreeNodeOfType<"IfStatement"> | null => {
-  if (usage.handleKey === null) return null;
-  const doesTestRequireLiveHandle = (test: EsTreeNode): boolean => {
-    if (resolveExpressionKey(test, context) === usage.handleKey) return true;
-    const unwrappedTest = stripParenExpression(test);
-    if (
-      !isNodeOfType(unwrappedTest, "BinaryExpression") ||
-      (unwrappedTest.operator !== "!=" && unwrappedTest.operator !== "!==")
-    ) {
-      return false;
-    }
-    const isNullishOperand = (operand: EsTreeNode): boolean => {
-      const unwrappedOperand = stripParenExpression(operand);
-      return (
-        (isNodeOfType(unwrappedOperand, "Literal") && unwrappedOperand.value === null) ||
-        (isNodeOfType(unwrappedOperand, "Identifier") &&
-          unwrappedOperand.name === "undefined" &&
-          context.scopes.isGlobalReference(unwrappedOperand))
-      );
-    };
+): boolean => {
+  if (resolveExpressionKey(test, context) === expressionKey) return true;
+  const unwrappedTest = stripParenExpression(test);
+  if (
+    !isNodeOfType(unwrappedTest, "BinaryExpression") ||
+    (unwrappedTest.operator !== "!=" && unwrappedTest.operator !== "!==")
+  ) {
+    return false;
+  }
+  const isNullishOperand = (operand: EsTreeNode): boolean => {
+    const unwrappedOperand = stripParenExpression(operand);
     return (
-      (resolveExpressionKey(unwrappedTest.left, context) === usage.handleKey &&
-        isNullishOperand(unwrappedTest.right)) ||
-      (resolveExpressionKey(unwrappedTest.right, context) === usage.handleKey &&
-        isNullishOperand(unwrappedTest.left))
+      (isNodeOfType(unwrappedOperand, "Literal") && unwrappedOperand.value === null) ||
+      (isNodeOfType(unwrappedOperand, "Identifier") &&
+        unwrappedOperand.name === "undefined" &&
+        context.scopes.isGlobalReference(unwrappedOperand))
     );
   };
+  return (
+    (resolveExpressionKey(unwrappedTest.left, context) === expressionKey &&
+      isNullishOperand(unwrappedTest.right)) ||
+    (resolveExpressionKey(unwrappedTest.right, context) === expressionKey &&
+      isNullishOperand(unwrappedTest.left))
+  );
+};
+
+const findLiveExpressionGuardForRelease = (
+  releaseCall: EsTreeNode,
+  owner: EsTreeNode,
+  expressionKey: string,
+  context: RuleContext,
+): EsTreeNodeOfType<"IfStatement"> | null => {
   let ancestor = releaseCall.parent;
   while (ancestor && ancestor !== owner) {
     if (isNodeOfType(ancestor, "IfStatement")) {
       if (
         ancestor.alternate !== null ||
-        !doesTestRequireLiveHandle(ancestor.test) ||
+        !doesTestRequireLiveExpressionKey(ancestor.test, expressionKey, context) ||
         !doMatchingNodesCoverEveryPathAfterUsage(ancestor.consequent, [releaseCall], context)
       ) {
         return null;
@@ -1409,6 +1417,16 @@ const findDirectHandleGuardForRelease = (
   }
   return null;
 };
+
+const findDirectHandleGuardForRelease = (
+  releaseCall: EsTreeNode,
+  owner: EsTreeNode,
+  usage: SubscribeLikeUsage,
+  context: RuleContext,
+): EsTreeNodeOfType<"IfStatement"> | null =>
+  usage.handleKey === null
+    ? null
+    : findLiveExpressionGuardForRelease(releaseCall, owner, usage.handleKey, context);
 
 const hasRerunReleaseBeforeUsage = (
   callback: EsTreeNode,
@@ -2449,7 +2467,7 @@ const isRetainedAbortControllerRefRelease = (
     !usageFunction ||
     !isFunctionLike(usageFunction) ||
     !isReturnedEffectCleanupFunction(releaseFunction) ||
-    !hasReactRefCurrentOrigin(releaseReceiver, context.scopes)
+    !resolveReactRefCurrentOriginSymbol(releaseReceiver, context.scopes)
   ) {
     return false;
   }
@@ -2497,6 +2515,164 @@ const isRetainedAbortControllerRefRelease = (
     safeOwnershipAssignments,
     usageFunction,
     context,
+  );
+};
+
+const isJsxRefAttribute = (node: EsTreeNode | null | undefined): boolean =>
+  isNodeOfType(node, "JSXAttribute") &&
+  isNodeOfType(node.name, "JSXIdentifier") &&
+  node.name.name === "ref";
+
+const isFunctionForwardedToReactRef = (functionNode: EsTreeNode, context: RuleContext): boolean => {
+  const bindingIdentifier = getFunctionBindingIdentifier(functionNode);
+  if (!bindingIdentifier) return false;
+  const symbol = context.scopes.symbolFor(bindingIdentifier);
+  if (!symbol) return false;
+  return symbol.references.some((reference) => {
+    const referenceRoot = findTransparentExpressionRoot(reference.identifier);
+    const expressionContainer = referenceRoot.parent;
+    return Boolean(
+      isNodeOfType(expressionContainer, "JSXExpressionContainer") &&
+      expressionContainer.expression === referenceRoot &&
+      isJsxRefAttribute(expressionContainer.parent),
+    );
+  });
+};
+
+const isFunctionReturnedFromReactHook = (
+  functionNode: EsTreeNode,
+  context: RuleContext,
+  requireRefPropertyName: boolean,
+): boolean => {
+  const bindingIdentifier = getFunctionBindingIdentifier(functionNode);
+  if (!bindingIdentifier) return false;
+  const symbol = context.scopes.symbolFor(bindingIdentifier);
+  if (!symbol) return false;
+  return symbol.references.some((reference) => {
+    const referenceRoot = findTransparentExpressionRoot(reference.identifier);
+    const property = referenceRoot.parent;
+    const propertyName = isNodeOfType(property, "Property")
+      ? getStaticPropertyKeyName(property)
+      : null;
+    if (
+      !isNodeOfType(property, "Property") ||
+      property.value !== referenceRoot ||
+      !isNodeOfType(property.parent, "ObjectExpression") ||
+      (requireRefPropertyName && propertyName !== "ref" && !propertyName?.endsWith("Ref"))
+    ) {
+      return false;
+    }
+    const returnedObject = findTransparentExpressionRoot(property.parent);
+    const returnStatement = returnedObject.parent;
+    if (
+      !isNodeOfType(returnStatement, "ReturnStatement") ||
+      returnStatement.argument !== returnedObject
+    ) {
+      return false;
+    }
+    const ownerFunction = findEnclosingFunction(returnStatement);
+    return Boolean(
+      ownerFunction && isReactHookName(getFunctionBindingIdentifier(ownerFunction)?.name ?? ""),
+    );
+  });
+};
+
+const isFunctionUsedAsReactRef = (functionNode: EsTreeNode, context: RuleContext): boolean =>
+  isFunctionForwardedToReactRef(functionNode, context) ||
+  isFunctionReturnedFromReactHook(functionNode, context, true);
+
+const isReactRefListenerReplacementRelease = (
+  releaseCall: EsTreeNodeOfType<"CallExpression">,
+  usage: SubscribeLikeUsage,
+  context: RuleContext,
+): boolean => {
+  if (!isNodeOfType(usage.node, "CallExpression")) return false;
+  const usageFunction = findEnclosingFunction(usage.node);
+  if (
+    !usageFunction ||
+    !isFunctionLike(usageFunction) ||
+    usageFunction !== findEnclosingFunction(releaseCall) ||
+    !isFunctionUsedAsReactRef(usageFunction, context)
+  ) {
+    return false;
+  }
+  const registrationCallee = stripParenExpression(usage.node.callee);
+  const releaseCallee = stripParenExpression(releaseCall.callee);
+  const releaseRefSymbol = isNodeOfType(releaseCallee, "MemberExpression")
+    ? resolveReactRefCurrentOriginSymbol(releaseCallee.object, context.scopes)
+    : null;
+  if (
+    !isNodeOfType(registrationCallee, "MemberExpression") ||
+    registrationCallee.computed ||
+    !isNodeOfType(registrationCallee.property, "Identifier") ||
+    registrationCallee.property.name !== "addEventListener" ||
+    !isNodeOfType(releaseCallee, "MemberExpression") ||
+    releaseCallee.computed ||
+    !isNodeOfType(releaseCallee.property, "Identifier") ||
+    releaseCallee.property.name !== "removeEventListener" ||
+    !releaseRefSymbol
+  ) {
+    return false;
+  }
+  const registrationReceiver = stripParenExpression(registrationCallee.object);
+  const registrationReceiverKey = resolveExpressionKey(registrationReceiver, context);
+  const nodeParameterKey = resolveExpressionKey(usageFunction.params?.[0], context);
+  const releaseReceiverKey = resolveExpressionKey(releaseCallee.object, context);
+  if (
+    registrationReceiverKey === null ||
+    registrationReceiverKey !== nodeParameterKey ||
+    releaseReceiverKey === null ||
+    usage.eventKey === null ||
+    usage.eventKey !== resolveExpressionKey(releaseCall.arguments?.[0], context) ||
+    usage.handlerKey === null ||
+    usage.handlerKey !== resolveExpressionKey(releaseCall.arguments?.[1], context)
+  ) {
+    return false;
+  }
+  const registrationCapture = resolveEventListenerCapture(usage.node.arguments?.[2], {
+    allowIndeterminateEntries: true,
+  });
+  const releaseCapture = resolveEventListenerCapture(releaseCall.arguments?.[2], {
+    allowIndeterminateEntries: true,
+  });
+  if (
+    registrationCapture === null ||
+    releaseCapture === null ||
+    registrationCapture !== releaseCapture
+  ) {
+    return false;
+  }
+  const releaseStart = getRangeStart(releaseCall);
+  const matchingOwnershipAssignments: EsTreeNode[] = [];
+  const usageFunctionBody = usageFunction.body;
+  walkAst(usageFunctionBody, (child: EsTreeNode) => {
+    if (child !== usageFunctionBody && isFunctionLike(child)) return false;
+    if (
+      isNodeOfType(child, "AssignmentExpression") &&
+      child.operator === "=" &&
+      resolveReactRefSymbol(stripParenExpression(child.left), context.scopes)?.id ===
+        releaseRefSymbol.id &&
+      resolveExpressionKey(child.right, context) === registrationReceiverKey &&
+      releaseStart !== null &&
+      (getRangeStart(child) ?? -1) > releaseStart
+    ) {
+      matchingOwnershipAssignments.push(child);
+    }
+  });
+  const releaseAnchor =
+    findLiveExpressionGuardForRelease(releaseCall, usageFunction, releaseReceiverKey, context) ??
+    releaseCall;
+  const safeOwnershipAssignments = matchingOwnershipAssignments.filter((assignment) =>
+    doMatchingNodesCoverEveryPathBeforeUsage(assignment, [releaseAnchor], usageFunction, context),
+  );
+  return (
+    doMatchingNodesCoverEveryPathFromFunctionEntry(usageFunction, [releaseAnchor], context) &&
+    doMatchingNodesCoverEveryPathBeforeUsage(
+      usage.node,
+      safeOwnershipAssignments,
+      usageFunction,
+      context,
+    )
   );
 };
 
@@ -2577,6 +2753,8 @@ const doesReleaseCallMatchUsage = (
   ) {
     return true;
   }
+
+  if (isReactRefListenerReplacementRelease(callNode, usage, context)) return true;
 
   if (usage.kind === "socket") {
     return (
@@ -2785,27 +2963,6 @@ const isPotentiallyReachableFunction = (
   );
 };
 
-const isJsxRefAttribute = (node: EsTreeNode | null | undefined): boolean =>
-  isNodeOfType(node, "JSXAttribute") &&
-  isNodeOfType(node.name, "JSXIdentifier") &&
-  node.name.name === "ref";
-
-const isFunctionForwardedToReactRef = (functionNode: EsTreeNode, context: RuleContext): boolean => {
-  const bindingIdentifier = getFunctionBindingIdentifier(functionNode);
-  if (!bindingIdentifier) return false;
-  const symbol = context.scopes.symbolFor(bindingIdentifier);
-  if (!symbol) return false;
-  return symbol.references.some((reference) => {
-    const referenceRoot = findTransparentExpressionRoot(reference.identifier);
-    const expressionContainer = referenceRoot.parent;
-    return Boolean(
-      isNodeOfType(expressionContainer, "JSXExpressionContainer") &&
-      expressionContainer.expression === referenceRoot &&
-      isJsxRefAttribute(expressionContainer.parent),
-    );
-  });
-};
-
 const findRetainedDisposerStorages = (
   disposerFunction: EsTreeNode,
   usage: SubscribeLikeUsage,
@@ -2998,34 +3155,7 @@ const hasCallbackRefReplacementInvocation = (
     const nodeParameter = storage.retainedFunction.params?.[0];
     const nodeParameterKey = resolveExpressionKey(nodeParameter, context);
     if (!nodeParameterKey || usage.receiverKey !== nodeParameterKey) return false;
-    const bindingIdentifier = getFunctionBindingIdentifier(storage.retainedFunction);
-    const symbol = bindingIdentifier ? context.scopes.symbolFor(bindingIdentifier) : null;
-    const isReturnedFromHook = Boolean(
-      symbol?.references.some((reference) => {
-        const referenceRoot = findTransparentExpressionRoot(reference.identifier);
-        const property = referenceRoot.parent;
-        if (
-          !isNodeOfType(property, "Property") ||
-          property.value !== referenceRoot ||
-          !isNodeOfType(property.parent, "ObjectExpression")
-        ) {
-          return false;
-        }
-        const returnedObject = findTransparentExpressionRoot(property.parent);
-        const returnStatement = returnedObject.parent;
-        if (
-          !isNodeOfType(returnStatement, "ReturnStatement") ||
-          returnStatement.argument !== returnedObject
-        ) {
-          return false;
-        }
-        const hookFunction = findEnclosingFunction(returnStatement);
-        return Boolean(
-          hookFunction && getFunctionBindingIdentifier(hookFunction)?.name.startsWith("use"),
-        );
-      }),
-    );
-    if (!isReturnedFromHook) return false;
+    if (!isFunctionReturnedFromReactHook(storage.retainedFunction, context, false)) return false;
     const usageStart = getRangeStart(usage.node);
     if (usageStart === null) return false;
     let hasNullExit = false;

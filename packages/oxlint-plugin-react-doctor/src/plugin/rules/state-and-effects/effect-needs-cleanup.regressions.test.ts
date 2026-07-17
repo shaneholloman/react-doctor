@@ -1069,6 +1069,31 @@ export const useWindowPan = () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it("rejects a callback ref returned from a non-hook function", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+const userPhotoZoom = () => {
+  const detachRef = useRef(null);
+  const setViewportNode = useCallback((node) => {
+    detachRef.current?.();
+    detachRef.current = null;
+    if (!node) return;
+    const handleWheel = () => undefined;
+    node.addEventListener("wheel", handleWheel);
+    detachRef.current = () => node.removeEventListener("wheel", handleWheel);
+  }, []);
+  return { setViewportNode };
+};
+export const Gallery = () => {
+  const zoom = userPhotoZoom();
+  return <button ref={zoom.setViewportNode} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
   it.each([
     {
       name: "cleanup effect calls a different ref",
@@ -7435,5 +7460,316 @@ export const Component = ({ load }) => {
     );
     expect(result.parseErrors).toEqual([]);
     expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("accepts listener replacement owned by a JSX callback ref", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) {
+      previous.removeEventListener("wheel", onWheel);
+    }
+    viewportNodeRef.current = node;
+    if (node) {
+      node.addEventListener("wheel", onWheel, { passive: false });
+    }
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts an unreassigned let alias for the previous callback-ref node", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    let previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts an unreassigned alias for the callback-ref node", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const currentNode = node;
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = currentNode;
+    if (currentNode) currentNode.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts listener replacement exposed as a hook ref property", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const useViewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const attachViewportListeners = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return { viewportRef: attachViewportListeners };
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("accepts listener replacement exposed as a bare hook ref property", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const useViewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const attachViewportListeners = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return { ref: attachViewportListeners };
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("rejects listener replacement exposed by a non-hook function", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const userViewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const attachViewportListeners = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return { viewportRef: attachViewportListeners };
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      name: "a different event",
+      release: 'previous.removeEventListener("scroll", onWheel);',
+    },
+    {
+      name: "a different handler",
+      release: 'previous.removeEventListener("wheel", onScroll);',
+    },
+  ])("rejects callback-ref replacement with $name", ({ release }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel, onScroll }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) {
+      ${release}
+    }
+    viewportNodeRef.current = node;
+    if (node) {
+      node.addEventListener("wheel", onWheel, { passive: false });
+    }
+  }, [onWheel, onScroll]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects replacement logic that is not used as a JSX callback ref", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const attachViewport = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button onClick={() => attachViewport(document.body)} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects callback-ref replacement that overwrites ownership before release", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    viewportNodeRef.current = node;
+    const current = viewportNodeRef.current;
+    if (current) current.removeEventListener("wheel", onWheel);
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects callback-ref replacement that conditionally skips release", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel, shouldRelease }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (shouldRelease && previous) {
+      previous.removeEventListener("wheel", onWheel);
+    }
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel, shouldRelease]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects callback-ref replacement that skips release on null unmount", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    if (node) {
+      const previous = viewportNodeRef.current;
+      if (previous) previous.removeEventListener("wheel", onWheel);
+      viewportNodeRef.current = node;
+      node.addEventListener("wheel", onWheel, { passive: false });
+    }
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects callback-ref ownership assigned only to a value alias", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    let previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    previous = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects a reassigned let alias for the previous callback-ref node", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    let previous = viewportNodeRef.current;
+    previous = node;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("rejects callback-ref ownership through a logical assignment", () => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (previous) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current ||= node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it.each([
+    { name: "loose null", guard: "previous != null" },
+    { name: "strict null", guard: "previous !== null" },
+  ])("accepts callback-ref replacement guarded by $name", ({ guard }) => {
+    const result = runRule(
+      effectNeedsCleanup,
+      `import { useCallback, useRef } from "react";
+export const Viewport = ({ onWheel }) => {
+  const viewportNodeRef = useRef(null);
+  const viewportRef = useCallback((node) => {
+    const previous = viewportNodeRef.current;
+    if (${guard}) previous.removeEventListener("wheel", onWheel);
+    viewportNodeRef.current = node;
+    if (node) node.addEventListener("wheel", onWheel, { passive: false });
+  }, [onWheel]);
+  return <button ref={viewportRef} />;
+};`,
+    );
+    expect(result.parseErrors).toEqual([]);
+    expect(result.diagnostics).toHaveLength(0);
   });
 });
