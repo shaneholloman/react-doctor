@@ -1623,6 +1623,86 @@ describe("react-builtins/exhaustive-deps — regressions", () => {
       expect(result.diagnostics).toEqual([]);
     });
 
+    it("accepts a registry initialized once through ref.current nullish assignment", () => {
+      const code = `
+        import { useCallback, useRef } from "react";
+        function Accordion() {
+          const registryRef = useRef();
+          const registry = (registryRef.current ??= new Set());
+          const registerItem = useCallback((key) => registry.add(key), [registry]);
+          const unregisterItem = useCallback((key) => registry.delete(key), [registry]);
+          const toggleItem = useCallback((key) => registry.has(key), [registry]);
+          return { registerItem, unregisterItem, toggleItem };
+        }
+      `;
+      const result = runRule(exhaustiveDeps, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it.each([
+      [
+        "an asserted ref",
+        "(registryRef as React.MutableRefObject<Set<string> | undefined>).current",
+      ],
+      ["a non-null ref", "(registryRef!).current"],
+    ])("accepts a registry initialized through %s", (_name, refCurrentExpression) => {
+      const code = `
+        import React, { useCallback, useRef } from "react";
+        function Accordion() {
+          const registryRef = useRef<Set<string>>();
+          const registry = (${refCurrentExpression} ??= new Set<string>());
+          return useCallback((key) => registry.add(key), [registry]);
+        }
+      `;
+      const result = runRule(exhaustiveDeps, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it.each([
+      ["a fresh local collection", "const registry = new Set();"],
+      [
+        "plain ref assignment",
+        "const registryRef = useRef(); const registry = (registryRef.current = new Set());",
+      ],
+      [
+        "later ref replacement",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); registryRef.current = new Set();",
+      ],
+      [
+        "later ref replacement through object destructuring",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); ({ value: registryRef.current } = source);",
+      ],
+      [
+        "later ref replacement through array destructuring",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); [registryRef.current] = source;",
+      ],
+      [
+        "later ref replacement through a for-of target",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); for (registryRef.current of sources) {}",
+      ],
+      [
+        "later ref replacement through a destructured for-in target",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); for ({ value: registryRef.current } in sources) {}",
+      ],
+      [
+        "an escaped ref",
+        "const registryRef = useRef(); const registry = (registryRef.current ??= new Set()); expose(registryRef);",
+      ],
+    ])("keeps %s registry dependencies reportable", (_name, declaration) => {
+      const code = `
+        import { useCallback, useRef } from "react";
+        function Accordion() {
+          ${declaration}
+          return useCallback((key) => registry.add(key), [registry]);
+        }
+      `;
+      const result = runRule(exhaustiveDeps, code);
+      expect(result.parseErrors).toEqual([]);
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    });
+
     it("keeps reactive identity sources beside a stable member fallback", () => {
       const code = `
         function EditorSurface({ pendingMappingOperationsRef }) {
