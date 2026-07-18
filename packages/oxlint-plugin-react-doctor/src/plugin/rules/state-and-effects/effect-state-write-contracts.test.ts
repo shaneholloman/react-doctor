@@ -393,11 +393,17 @@ describe("derived-state family contracts", () => {
       };`,
     ],
   ])("recognizes %s by React binding identity", (_name, aliasCode) => {
-    for (const rule of [noDerivedState, noDerivedStateEffect, noAdjustStateOnPropChange]) {
+    for (const rule of [noDerivedState, noDerivedStateEffect]) {
       const result = runRule(rule, aliasCode);
       expect(result.parseErrors).toEqual([]);
       expect(result.diagnostics).toHaveLength(1);
     }
+    const adjustmentResult = runRule(
+      noAdjustStateOnPropChange,
+      aliasCode.replace("setMirror(value)", "setMirror(null)"),
+    );
+    expect(adjustmentResult.parseErrors).toEqual([]);
+    expect(adjustmentResult.diagnostics).toHaveLength(1);
   });
 
   it.each([
@@ -551,7 +557,7 @@ describe("derived-state family contracts", () => {
       }, [value]);
       return <div>{String(mirror)}</div>;
     }`;
-    for (const rule of [noDerivedState, noDerivedStateEffect, noAdjustStateOnPropChange]) {
+    for (const rule of [noDerivedState, noDerivedStateEffect]) {
       const result = runRule(rule, transformCode, { forceJsx: true });
       expect(result.parseErrors).toEqual([]);
       expect(result.diagnostics).toHaveLength(1);
@@ -602,15 +608,14 @@ describe("derived-state family contracts", () => {
     }
   });
 
-  it("requires a copied render source for prop-change adjustment", () => {
-    const copiedResult = runRule(
-      noAdjustStateOnPropChange,
-      `function Example({ value }) {
+  it("assigns prop copies to the derived-state rules and unrelated resets to this rule", () => {
+    const propMirrorCode = `function Example({ value }) {
         const [mirror, setMirror] = useState(null);
         useEffect(() => setMirror(value), [value]);
         return mirror;
-      }`,
-    );
+      }`;
+    const copiedResult = runRule(noAdjustStateOnPropChange, propMirrorCode);
+    const owningSiblingResult = runRule(noDerivedStateEffect, propMirrorCode);
     const constantResult = runRule(
       noAdjustStateOnPropChange,
       `function Example({ value }) {
@@ -620,8 +625,10 @@ describe("derived-state family contracts", () => {
       }`,
     );
     expect(copiedResult.parseErrors).toEqual([]);
-    expect(copiedResult.diagnostics).toHaveLength(1);
+    expect(copiedResult.diagnostics).toEqual([]);
+    expect(owningSiblingResult.parseErrors).toEqual([]);
+    expect(owningSiblingResult.diagnostics).toHaveLength(1);
     expect(constantResult.parseErrors).toEqual([]);
-    expect(constantResult.diagnostics).toEqual([]);
+    expect(constantResult.diagnostics).toHaveLength(1);
   });
 });
