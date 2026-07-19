@@ -100,6 +100,8 @@ const discoverProjectWithoutPackageJson = (directory: string): ProjectInfo => {
     hasReactCompiler: false,
     hasReactCompilerLintPlugin: false,
     hasTanStackQuery: false,
+    valtioVersion: null,
+    valtioMajorVersion: null,
     hasSsrDependency: false,
     preactVersion: null,
     preactMajorVersion: null,
@@ -264,6 +266,12 @@ export const discoverProject = (directory: string): ProjectInfo => {
           version: workspaceFacts.next.version,
         })
       : null;
+  const valtioVersion = resolveCatalogBackedDependencyVersion({
+    rootDirectory: directory,
+    rootPackageJson: packageJson,
+    packageName: "valtio",
+    version: workspaceFacts.valtioVersion,
+  });
   const preactVersion = getPreactVersion(packageJson);
   const isPreES2023Target = hasTypeScript && detectPreES2023Target(directory);
 
@@ -280,6 +288,8 @@ export const discoverProject = (directory: string): ProjectInfo => {
     hasReactCompiler: detectReactCompiler(directory, packageJson),
     hasReactCompilerLintPlugin: detectReactCompilerLintPlugin(directory, packageJson),
     hasTanStackQuery: hasTanStackQuery(packageJson),
+    valtioVersion,
+    valtioMajorVersion: valtioVersion === null ? null : getLowestDependencyMajor(valtioVersion),
     hasSsrDependency: workspaceFacts.hasSsrDependency,
     preactVersion,
     preactMajorVersion: parseReactMajor(preactVersion),
