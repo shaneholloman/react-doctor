@@ -3,6 +3,7 @@ dist
 .turbo
 *.log
 .DS_Store
+.env.local
 .cursor
 .claude
 tmp/
@@ -35,6 +36,8 @@ review-*.md
 !/.agents/skills/product-thinking/**
 !/.agents/skills/rde-eval/
 !/.agents/skills/rde-eval/**
+!/.agents/skills/run-parity/
+!/.agents/skills/run-parity/**
 !/.agents/skills/fuzz/
 !/.agents/skills/fuzz/**
 
