@@ -48,6 +48,7 @@ export const EARLIEST_GATED_PREACT_MAJOR = 10;
 // Valtio shipped the useSnapshot render contract in v1. The upper bound
 // follows the same untrusted-version clamp as React and Preact.
 export const EARLIEST_GATED_VALTIO_MAJOR = 1;
+export const EARLIEST_GATED_STYLED_COMPONENTS_MAJOR = 6;
 export const LATEST_KNOWN_VALTIO_MAJOR = 10;
 export const LATEST_KNOWN_REMOTION_MAJOR = 30;
 
@@ -684,6 +685,12 @@ export const SIDECAR_LINT_CACHE_FILENAME = "sidecar-lint-cache.json";
 // Length (chars) of the project-directory hash used to name the tmp-dir cache
 // fallback when a project has no `node_modules` to host `.cache/react-doctor`.
 export const CACHE_FILENAME_HASH_LENGTH_CHARS = 16;
+
+// Length (chars) of the rule-plugin entry-content hash folded into the
+// per-file lint cache's ruleset hash, so a rebuilt dev plugin (same version,
+// different rule behavior) busts the cache instead of replaying stale
+// diagnostics.
+export const PLUGIN_FINGERPRINT_LENGTH_CHARS = 16;
 
 // This package's own version, inlined at build time (`vite.config.ts` `env`)
 // the same way the CLI inlines `VERSION`; running from source (tests, dev)

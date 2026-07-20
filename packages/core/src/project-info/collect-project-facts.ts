@@ -1,6 +1,10 @@
 import * as path from "node:path";
 import type { DependencyInfo, Framework, PackageJson } from "../types/index.js";
-import { LATEST_SUPPORTED_MOBX_MAJOR, LATEST_SUPPORTED_ZUSTAND_MAJOR } from "../constants.js";
+import {
+  EARLIEST_GATED_STYLED_COMPONENTS_MAJOR,
+  LATEST_SUPPORTED_MOBX_MAJOR,
+  LATEST_SUPPORTED_ZUSTAND_MAJOR,
+} from "../constants.js";
 import {
   EMPTY_DEPENDENCY_INFO,
   extractDependencyInfo,
@@ -19,6 +23,9 @@ import { isPackageJsonReactNativeAware, isPackageJsonReanimatedAware } from "./r
 import { isPackageJsonSsrAware } from "./ssr-metadata.js";
 import { getWorkspacePatterns, resolveWorkspaceDirectories } from "./workspaces.js";
 import { getLowestDependencyMajor, parseReactMajor } from "./version.js";
+import { getTanStackQueryVersion } from "./get-tanstack-query-version.js";
+import { getStyledComponentsVersion } from "./get-styled-components-version.js";
+import { hasI18nDependency } from "./has-i18n-dependency.js";
 
 const REANIMATED_DEPENDENCY_NAME = "react-native-reanimated";
 const MOBX_REACT_PACKAGE_NAME = "mobx-react";
@@ -60,7 +67,10 @@ export interface WorkspaceFacts {
   // Conservative representative across every declaring manifest: an
   // unparseable or future major wins; otherwise the lowest major wins.
   zustand: DependencyFact;
+  tanstackQueryVersion: string | null;
+  styledComponentsVersion: string | null;
   // Any-of predicates over the scan root + every workspace manifest.
+  hasI18nLibrary: boolean;
   hasReactNativeAwarePackage: boolean;
   hasReanimatedAwarePackage: boolean;
   hasSsrDependency: boolean;
@@ -145,6 +155,23 @@ const shouldReplaceSupportedDependencyFact = (
   if (nextMajor > latestSupportedMajor) return true;
   return nextMajor < currentMajor;
 };
+
+const shouldReplaceStyledComponentsVersion = (
+  currentVersion: string | null,
+  nextVersion: string,
+): boolean => {
+  if (!currentVersion) return true;
+
+  const currentMajor = getLowestDependencyMajor(currentVersion);
+  const nextMajor = getLowestDependencyMajor(nextVersion);
+
+  if (currentMajor === null) {
+    return nextMajor !== null && nextMajor < EARLIEST_GATED_STYLED_COMPONENTS_MAJOR;
+  }
+  if (nextMajor === null) return currentMajor >= EARLIEST_GATED_STYLED_COMPONENTS_MAJOR;
+  return nextMajor < currentMajor;
+};
+
 const evaluateManifestFacts = (
   facts: WorkspaceFacts,
   packageJson: PackageJson,
@@ -219,6 +246,20 @@ const evaluateManifestFacts = (
     const spec = getDependencySpec(packageJson, "valtio");
     if (spec !== null) facts.valtioVersion = spec;
   }
+  facts.tanstackQueryVersion ??= getTanStackQueryVersion(packageJson);
+  const styledComponentsVersion = resolveCatalogBackedDependencyVersion({
+    rootDirectory: directory,
+    rootPackageJson: packageJson,
+    packageName: "styled-components",
+    version: getStyledComponentsVersion(packageJson),
+  });
+  if (
+    styledComponentsVersion &&
+    shouldReplaceStyledComponentsVersion(facts.styledComponentsVersion, styledComponentsVersion)
+  ) {
+    facts.styledComponentsVersion = styledComponentsVersion;
+  }
+  facts.hasI18nLibrary = facts.hasI18nLibrary || hasI18nDependency(packageJson);
   facts.hasReactNativeAwarePackage =
     facts.hasReactNativeAwarePackage || isPackageJsonReactNativeAware(packageJson);
   facts.hasReanimatedAwarePackage =
@@ -285,6 +326,9 @@ export const collectWorkspaceFacts = (
     hasMobxStateTree: false,
     hasMobxReactObserver: false,
     zustand: { version: null, sourceDirectory: null },
+    tanstackQueryVersion: null,
+    styledComponentsVersion: null,
+    hasI18nLibrary: false,
     hasReactNativeAwarePackage: false,
     hasReanimatedAwarePackage: false,
     hasSsrDependency: false,
