@@ -128,12 +128,15 @@ export const buildCapabilities = (project: ProjectInfo): ReadonlySet<Capability>
   ) {
     capabilities.add("react:19.2");
   }
-  if (project.tailwindVersion !== null) capabilities.add("tailwind");
-  if (
-    project.tailwindVersion !== null &&
-    isMajorMinorAtLeast(parseTailwindMajorMinor(project.tailwindVersion), { major: 3, minor: 4 })
-  ) {
-    capabilities.add("tailwind:3.4");
+  if (project.tailwindVersion !== null) {
+    capabilities.add("tailwind");
+    const tailwindVersion = parseTailwindMajorMinor(project.tailwindVersion);
+    if (isMajorMinorAtLeast(tailwindVersion, { major: 3, minor: 4 })) {
+      capabilities.add("tailwind:3.4");
+    }
+    if (tailwindVersion !== null && isMajorMinorAtLeast(tailwindVersion, { major: 4, minor: 0 })) {
+      capabilities.add("tailwind:4");
+    }
   }
   if (project.zodVersion !== null) capabilities.add("zod");
   if (project.zodMajorVersion !== null && project.zodMajorVersion >= 4) capabilities.add("zod:4");
@@ -257,6 +260,7 @@ export const shouldEnableRule = (
   capabilities: ReadonlySet<Capability>,
   ignoredTags: ReadonlySet<string>,
   disabledWhen?: ReadonlyArray<Capability>,
+  includedTags?: ReadonlySet<string>,
 ): boolean => {
   if (requires) {
     for (const capability of requires) {
@@ -278,6 +282,9 @@ export const shouldEnableRule = (
     for (const tag of tags) {
       if (ignoredTags.has(tag)) return false;
     }
+  }
+  if (includedTags && includedTags.size > 0) {
+    if (!tags?.some((tag) => includedTags.has(tag))) return false;
   }
   return true;
 };

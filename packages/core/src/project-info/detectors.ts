@@ -288,11 +288,17 @@ const NEXT_CONFIG_FILENAMES = [
 
 const BABEL_CONFIG_FILENAMES = [
   ".babelrc",
+  ".babelrc.js",
   ".babelrc.json",
+  ".babelrc.cjs",
+  ".babelrc.mjs",
+  ".babelrc.cts",
   "babel.config.js",
   "babel.config.json",
   "babel.config.cjs",
   "babel.config.mjs",
+  "babel.config.ts",
+  "babel.config.cts",
 ];
 
 const VITE_CONFIG_FILENAMES = [
@@ -306,10 +312,28 @@ const VITE_CONFIG_FILENAMES = [
   "vitest.config.js",
 ];
 
+const RSBUILD_CONFIG_FILENAMES = [
+  "rsbuild.config.ts",
+  "rsbuild.config.js",
+  "rsbuild.config.mts",
+  "rsbuild.config.mjs",
+  "rsbuild.config.cts",
+  "rsbuild.config.cjs",
+];
+
+const RSPACK_CONFIG_FILENAMES = [
+  "rspack.config.ts",
+  "rspack.config.js",
+  "rspack.config.mts",
+  "rspack.config.mjs",
+  "rspack.config.cts",
+  "rspack.config.cjs",
+];
+
 const EXPO_APP_CONFIG_FILENAMES = ["app.json", "app.config.js", "app.config.ts"];
 
 const REACT_COMPILER_PACKAGE_REFERENCE_PATTERN =
-  /babel-plugin-react-compiler|react-compiler-runtime|["']react-compiler["']/;
+  /babel-plugin-react-compiler|react-compiler-runtime|reactCompilerPreset\s*\(|["']react-compiler["']/;
 const REACT_COMPILER_ENABLED_FLAG_PATTERN = /["']?reactCompiler["']?\s*:\s*(?:true\b|\{)/;
 
 // `output: "export"` (static HTML export) in next.config.*. The leading
@@ -367,6 +391,8 @@ export const detectReactCompiler = (directory: string, packageJson: PackageJson)
   if (hasCompilerInConfigFiles(directory, NEXT_CONFIG_FILENAMES)) return true;
   if (hasCompilerInConfigFiles(directory, BABEL_CONFIG_FILENAMES)) return true;
   if (hasCompilerInConfigFiles(directory, VITE_CONFIG_FILENAMES)) return true;
+  if (hasCompilerInConfigFiles(directory, RSBUILD_CONFIG_FILENAMES)) return true;
+  if (hasCompilerInConfigFiles(directory, RSPACK_CONFIG_FILENAMES)) return true;
   if (hasCompilerInConfigFiles(directory, EXPO_APP_CONFIG_FILENAMES)) return true;
 
   return hasCompilerPackageInAncestors(directory, REACT_COMPILER_TRANSFORM_PACKAGES);

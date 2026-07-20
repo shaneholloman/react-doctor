@@ -61,6 +61,7 @@ const BUCKETS_REQUIRING_REACT = new Set([
 // authored tags layer on top (deduped at runtime), so a rule can both
 // inherit a bucket tag and carry its own.
 const BUCKET_TO_AUTO_TAGS = {
+  design: ["design"],
   "react-native": ["react-native"],
   "security-scan": ["security-scan"],
   server: ["server-action"],
@@ -91,12 +92,32 @@ const EFFECT_RULES_PORTED_FROM_EXTERNAL = new Set([
 // `customRulesOnly`. Without this list every new in-house rule we drop
 // into `a11y/` would silently disappear for users who narrow scope.
 const RULES_NOT_PORTED_FROM_EXTERNAL = new Set([
+  "data-table-requires-accessible-name",
+  "details-requires-summary",
+  "fieldset-requires-legend",
+  "form-control-requires-name",
   "prefer-html-dialog",
+  "no-autoplay-without-muted",
+  "no-assertive-status",
+  "no-aria-invalid-without-description",
+  "no-blocked-paste",
+  "no-broken-image-source",
+  "no-focusable-content-in-aria-hidden",
+  "no-multiple-unlabeled-navigation-landmarks",
+  "no-multiple-main-landmarks",
+  "no-nonresizable-textarea",
+  "no-placeholder-only-field",
+  "no-skipped-heading-level",
+  "no-static-motion-config-never",
+  "no-ungated-tailwind-animation",
+  "no-uninformative-aria-label",
   "dialog-has-accessible-name",
   "no-create-ref-in-function-component",
   "no-call-component-as-function",
   "no-string-false-on-boolean-attribute",
   "hook-import-rename-loses-use-prefix",
+  "no-invalid-progress-range",
+  "role-button-requires-complete-keyboard-activation",
 ]);
 
 // Rule ids whose source files are kept on disk but intentionally NOT

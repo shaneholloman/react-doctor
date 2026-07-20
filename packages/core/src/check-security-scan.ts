@@ -7,12 +7,15 @@ import { COOPERATIVE_YIELD_BUDGET_MS } from "./constants.js";
 import { getCapabilities, shouldEnableRule } from "./project-info/capabilities.js";
 import type { Diagnostic, ProjectInfo } from "./types/index.js";
 import { isPathGitIgnored } from "./utils/is-path-git-ignored.js";
+import { shouldEnableRuleByDefaultStatus } from "./utils/should-enable-rule-by-default-status.js";
 import { yieldToEventLoop } from "./utils/yield-to-event-loop.js";
 import type { Capability } from "oxlint-plugin-react-doctor";
 
 export interface CheckSecurityScanOptions {
   readonly project?: ProjectInfo;
   readonly ignoredTags?: ReadonlySet<string>;
+  readonly includedTags?: ReadonlySet<string>;
+  readonly includeTagDefaults?: boolean;
 }
 
 interface EnabledScanRule {
@@ -43,13 +46,30 @@ const createSecurityScanSession = (
 ): SecurityScanSession | null => {
   const capabilities = options.project ? getCapabilities(options.project) : new Set<Capability>();
   const ignoredTags = options.ignoredTags ?? new Set<string>();
+  const includedTags = options.includedTags ?? new Set<string>();
 
   const enabledScanRules: EnabledScanRule[] = REACT_DOCTOR_RULES.flatMap((entry) => {
     const rule = entry.rule;
     const scan = rule.scan;
     if (typeof scan !== "function") return [];
-    if (rule.defaultEnabled === false) return [];
-    if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledWhen)) {
+    if (
+      !shouldEnableRuleByDefaultStatus({
+        defaultEnabled: rule.defaultEnabled,
+        includeTagDefaults: options.includeTagDefaults === true,
+        hasIncludedTags: includedTags.size > 0,
+      })
+    )
+      return [];
+    if (
+      !shouldEnableRule(
+        rule.requires,
+        rule.tags,
+        capabilities,
+        ignoredTags,
+        rule.disabledWhen,
+        includedTags,
+      )
+    ) {
       return [];
     }
     return [{ entry, scan, committedFilesOnly: rule.committedFilesOnly === true }];

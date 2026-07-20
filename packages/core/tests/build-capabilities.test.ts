@@ -494,6 +494,28 @@ describe("buildCapabilities", () => {
     );
   });
 
+  it("emits `tailwind`, `tailwind:3.4`, and `tailwind:4` for a Tailwind 4 project", () => {
+    const capabilities = buildCapabilities({ ...baseProject, tailwindVersion: "^4.0.0" });
+    expect(capabilities.has("tailwind")).toBe(true);
+    expect(capabilities.has("tailwind:3.4")).toBe(true);
+    expect(capabilities.has("tailwind:4")).toBe(true);
+  });
+
+  it("emits `tailwind:3.4` but not `tailwind:4` for a Tailwind 3.4 project", () => {
+    const capabilities = buildCapabilities({ ...baseProject, tailwindVersion: "^3.4.1" });
+    expect(capabilities.has("tailwind:3.4")).toBe(true);
+    expect(capabilities.has("tailwind:4")).toBe(false);
+  });
+
+  it("stays optimistic for `tailwind:3.4` but withholds `tailwind:4` when the version is unparseable", () => {
+    const capabilities = buildCapabilities({ ...baseProject, tailwindVersion: "workspace:*" });
+    expect(capabilities.has("tailwind")).toBe(true);
+    expect(capabilities.has("tailwind:3.4")).toBe(true);
+    // A deprecation rule must not fire on an unprovable version — a v3 project
+    // would otherwise get confidently-wrong "renamed in v4" warnings.
+    expect(capabilities.has("tailwind:4")).toBe(false);
+  });
+
   it("emits `nextjs:15` capability for Next.js 15+ projects", () => {
     const capabilities = buildCapabilities({
       ...baseProject,
@@ -769,6 +791,31 @@ describe("shouldEnableRule MobX gating", () => {
         mobxReactLiteCapabilities,
         noIgnoredTags,
       ),
+    ).toBe(false);
+  });
+});
+
+describe("shouldEnableRule tag inclusion", () => {
+  const capabilities = new Set(["react"]);
+  const ignoredTags = new Set<string>();
+  const includedTags = new Set(["design"]);
+
+  it("keeps only rules carrying an explicitly included tag", () => {
+    expect(
+      shouldEnableRule(
+        undefined,
+        ["design", "test-noise"],
+        capabilities,
+        ignoredTags,
+        undefined,
+        includedTags,
+      ),
+    ).toBe(true);
+    expect(
+      shouldEnableRule(undefined, ["security"], capabilities, ignoredTags, undefined, includedTags),
+    ).toBe(false);
+    expect(
+      shouldEnableRule(undefined, undefined, capabilities, ignoredTags, undefined, includedTags),
     ).toBe(false);
   });
 });

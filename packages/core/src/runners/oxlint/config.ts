@@ -11,6 +11,7 @@ import { COMPILER_CLEANUP_BUCKET, COMPILER_CLEANUP_RULE_KEYS } from "../../const
 import { getCapabilities, shouldEnableRule } from "../../project-info/capabilities.js";
 import { filterRulesToAvailable, resolveReactHooksJsPlugin } from "./plugin-resolution.js";
 import type { JsPluginEntry, ResolvedUserPlugin } from "./plugin-resolution.js";
+import { shouldEnableRuleByDefaultStatus } from "../../utils/should-enable-rule-by-default-status.js";
 
 export interface OxlintConfigOptions {
   pluginPath: string;
@@ -18,6 +19,8 @@ export interface OxlintConfigOptions {
   customRulesOnly?: boolean;
   extendsPaths?: string[];
   ignoredTags?: ReadonlySet<string>;
+  includedTags?: ReadonlySet<string>;
+  includeTagDefaults?: boolean;
   serverAuthFunctionNames?: ReadonlyArray<string>;
   severityControls?: RuleSeverityControls;
   /**
@@ -119,6 +122,8 @@ export const createOxlintConfig = ({
   customRulesOnly = false,
   extendsPaths = [],
   ignoredTags = new Set<string>(),
+  includedTags = new Set<string>(),
+  includeTagDefaults = false,
   serverAuthFunctionNames,
   severityControls,
   userPlugins = [],
@@ -126,10 +131,11 @@ export const createOxlintConfig = ({
   ruleSelection,
   sidecarRuleIdFilter,
 }: OxlintConfigOptions) => {
+  const hasIncludedTags = includedTags.size > 0;
   // The sidecar carries only cross-file react-doctor rules — the React
   // Compiler frontend isn't cross-file, so it never belongs there.
   const reactHooksJsPlugin =
-    disableReactHooksJsPlugin || ruleSelection === "sidecar"
+    disableReactHooksJsPlugin || ruleSelection === "sidecar" || hasIncludedTags
       ? null
       : resolveReactHooksJsPlugin(
           project.hasReactCompiler || project.hasReactCompilerLintPlugin === true,
@@ -175,7 +181,16 @@ export const createOxlintConfig = ({
     // from upstream OXC plugins.
     if (customRulesOnly && registryEntry.originallyExternal) continue;
     if (rule.framework !== "global" && !rule.requires) continue;
-    if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledWhen))
+    if (
+      !shouldEnableRule(
+        rule.requires,
+        rule.tags,
+        capabilities,
+        ignoredTags,
+        rule.disabledWhen,
+        includedTags,
+      )
+    )
       continue;
     // `defaultEnabled: false` opts a rule out of the default config —
     // it ships in the plugin but only activates when the user pins the
@@ -187,7 +202,15 @@ export const createOxlintConfig = ({
       { ruleKey: registryEntry.key },
       severityControls,
     );
-    if (rule.defaultEnabled === false && explicitRuleOverride === undefined) continue;
+    if (
+      !shouldEnableRuleByDefaultStatus({
+        defaultEnabled: rule.defaultEnabled,
+        includeTagDefaults,
+        hasIncludedTags,
+        hasExplicitOverride: explicitRuleOverride !== undefined,
+      })
+    )
+      continue;
     const explicitSeverity = resolveRuleSeverityOverride(
       { ruleKey: registryEntry.key, category: rule.category },
       severityControls,
@@ -210,7 +233,7 @@ export const createOxlintConfig = ({
   // they never go in the cacheable sidecar split. They only run on the full
   // (uncached) config; the cache path bypasses entirely when any are present.
   const userPluginRules: Record<string, OxlintRuleSeverity> = {};
-  if (ruleSelection !== "sidecar") {
+  if (ruleSelection !== "sidecar" && !hasIncludedTags) {
     for (const userPlugin of userPlugins) {
       Object.assign(userPluginRules, buildUserPluginRules(userPlugin, severityControls));
       jsPlugins.push(userPlugin.entry);

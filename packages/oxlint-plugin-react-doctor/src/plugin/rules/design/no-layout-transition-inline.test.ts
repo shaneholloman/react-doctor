@@ -45,4 +45,20 @@ describe("no-layout-transition-inline", () => {
     );
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it("flags inset-property transitions", () => {
+    const result = runRule(
+      noLayoutTransitionInline,
+      `const I = () => <div style={{ transition: "top 0.2s, right 0.2s, bottom 0.2s, left 0.2s" }} />;`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not expand the rule to gap or font-size transitions", () => {
+    const result = runRule(
+      noLayoutTransitionInline,
+      `const I = () => <div style={{ transition: "gap 0.2s, font-size 0.2s" }} />;`,
+    );
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

@@ -18,6 +18,7 @@ import { anchorAmbiguousText } from "./rules/a11y/anchor-ambiguous-text.js";
 import { anchorHasContent } from "./rules/a11y/anchor-has-content.js";
 import { anchorIsValid } from "./rules/a11y/anchor-is-valid.js";
 import { ariaActivedescendantHasTabindex } from "./rules/a11y/aria-activedescendant-has-tabindex.js";
+import { ariaBrailleEquivalent } from "./rules/a11y/aria-braille-equivalent.js";
 import { ariaProps } from "./rules/a11y/aria-props.js";
 import { ariaProptypes } from "./rules/a11y/aria-proptypes.js";
 import { ariaRole } from "./rules/a11y/aria-role.js";
@@ -43,6 +44,7 @@ import { contextProviderValueFromUnmemoizedLocalLiteral } from "./rules/performa
 import { controlHasAssociatedLabel } from "./rules/a11y/control-has-associated-label.js";
 import { corsCookieTrustRisk } from "./rules/security-scan/cors-cookie-trust-risk.js";
 import { dangerousHtmlSink } from "./rules/security-scan/dangerous-html-sink.js";
+import { dataTableRequiresAccessibleName } from "./rules/a11y/data-table-requires-accessible-name.js";
 import { debounceNoCleanup } from "./rules/state-and-effects/debounce-no-cleanup.js";
 import { noEmDashInJsxText } from "./rules/react-ui/no-em-dash-in-jsx-text.js";
 import { noRedundantPaddingAxes } from "./rules/react-ui/no-redundant-padding-axes.js";
@@ -50,6 +52,7 @@ import { noRedundantSizeAxes } from "./rules/react-ui/no-redundant-size-axes.js"
 import { noSpaceOnFlexChildren } from "./rules/react-ui/no-space-on-flex-children.js";
 import { noThreePeriodEllipsis } from "./rules/react-ui/no-three-period-ellipsis.js";
 import { noVagueButtonLabel } from "./rules/react-ui/no-vague-button-label.js";
+import { detailsRequiresSummary } from "./rules/a11y/details-requires-summary.js";
 import { dialogHasAccessibleName } from "./rules/a11y/dialog-has-accessible-name.js";
 import { displayName } from "./rules/react-builtins/display-name.js";
 import { effectListenerCleanupMismatch } from "./rules/state-and-effects/effect-listener-cleanup-mismatch.js";
@@ -58,14 +61,17 @@ import { effectNeedsCleanup } from "./rules/state-and-effects/effect-needs-clean
 import { effectObserverNeedsDisconnect } from "./rules/state-and-effects/effect-observer-needs-disconnect.js";
 import { effectRafLoopNeedsCancel } from "./rules/state-and-effects/effect-raf-loop-needs-cancel.js";
 import { effectRemoveListenerInlineHandler } from "./rules/state-and-effects/effect-remove-listener-inline-handler.js";
+import { emptyTableHeader } from "./rules/a11y/empty-table-header.js";
 import { exhaustiveDeps } from "./rules/react-builtins/exhaustive-deps.js";
 import { expoNoNonInlinedEnv } from "./rules/react-native/expo-no-non-inlined-env.js";
+import { fieldsetRequiresLegend } from "./rules/a11y/fieldset-requires-legend.js";
 import { firebaseClientOwnedAuthzField } from "./rules/security-scan/firebase-client-owned-authz-field.js";
 import { firebasePermissiveRules } from "./rules/security-scan/firebase-permissive-rules.js";
 import { firebaseQueryFilterAsAuth } from "./rules/security-scan/firebase-query-filter-as-auth.js";
 import { forbidComponentProps } from "./rules/react-builtins/forbid-component-props.js";
 import { forbidDomProps } from "./rules/react-builtins/forbid-dom-props.js";
 import { forbidElements } from "./rules/react-builtins/forbid-elements.js";
+import { formControlRequiresName } from "./rules/a11y/form-control-requires-name.js";
 import { forwardRefUsesRef } from "./rules/react-builtins/forward-ref-uses-ref.js";
 import { gitProviderUrlInjectionRisk } from "./rules/security-scan/git-provider-url-injection-risk.js";
 import { headingHasContent } from "./rules/a11y/heading-has-content.js";
@@ -73,11 +79,15 @@ import { hookImportRenameLosesUsePrefix } from "./rules/react-builtins/hook-impo
 import { hookUseState } from "./rules/react-builtins/hook-use-state.js";
 import { hooksNoNanInDeps } from "./rules/state-and-effects/hooks-no-nan-in-deps.js";
 import { htmlHasLang } from "./rules/a11y/html-has-lang.js";
+import { htmlLabelHasSingleControl } from "./rules/correctness/html-label-has-single-control.js";
 import { htmlNoInvalidParagraphChild } from "./rules/correctness/html-no-invalid-paragraph-child.js";
 import { htmlNoInvalidTableNesting } from "./rules/correctness/html-no-invalid-table-nesting.js";
+import { htmlNoNestedForm } from "./rules/correctness/html-no-nested-form.js";
 import { htmlNoNestedInteractive } from "./rules/correctness/html-no-nested-interactive.js";
+import { htmlXmlLangMismatch } from "./rules/a11y/html-xml-lang-mismatch.js";
 import { iframeHasTitle } from "./rules/a11y/iframe-has-title.js";
 import { iframeMissingSandbox } from "./rules/react-builtins/iframe-missing-sandbox.js";
+import { iframeTitleUnique } from "./rules/a11y/iframe-title-unique.js";
 import { imgRedundantAlt } from "./rules/a11y/img-redundant-alt.js";
 import { importMetadataExecutionRisk } from "./rules/security-scan/import-metadata-execution-risk.js";
 import { insecureCryptoRisk } from "./rules/security-scan/insecure-crypto-risk.js";
@@ -132,6 +142,18 @@ import { mediaHasCaption } from "./rules/a11y/media-has-caption.js";
 import { mobxNoMakeAutoObservableInInheritance } from "./rules/mobx/mobx-no-make-auto-observable-in-inheritance.js";
 import { mobxNoObserverWrappedMemo } from "./rules/mobx/mobx-no-observer-wrapped-memo.js";
 import { mobxReactionDisposerDiscarded } from "./rules/mobx/mobx-reaction-disposer-discarded.js";
+import { motionAnimatePresenceMustOutliveChild } from "./rules/correctness/motion-animate-presence-must-outlive-child.js";
+import { motionAnimatePresenceRequiresKey } from "./rules/correctness/motion-animate-presence-requires-key.js";
+import { motionAnimatePresenceWaitSingleChild } from "./rules/correctness/motion-animate-presence-wait-single-child.js";
+import { motionCreateInRender } from "./rules/correctness/motion-create-in-render.js";
+import { motionDragAxisConstraintMismatch } from "./rules/correctness/motion-drag-axis-constraint-mismatch.js";
+import { motionImperativeAnimationInRender } from "./rules/correctness/motion-imperative-animation-in-render.js";
+import { motionKeyframeTimesMismatch } from "./rules/correctness/motion-keyframe-times-mismatch.js";
+import { motionLayoutOnInlineElement } from "./rules/correctness/motion-layout-on-inline-element.js";
+import { motionUnstableLayoutIdInIteration } from "./rules/correctness/motion-unstable-layout-id-in-iteration.js";
+import { motionUseTransformRangeLength } from "./rules/correctness/motion-use-transform-range-length.js";
+import { motionValueConstructorInRender } from "./rules/performance/motion-value-constructor-in-render.js";
+import { motionValueSubscriptionInRender } from "./rules/correctness/motion-value-subscription-in-render.js";
 import { mouseEventsHaveKeyEvents } from "./rules/a11y/mouse-events-have-key-events.js";
 import { nextjsAsyncClientComponent } from "./rules/nextjs/nextjs-async-client-component.js";
 import { nextjsAsyncDynamicApiNotAwaited } from "./rules/nextjs/nextjs-async-dynamic-api-not-awaited.js";
@@ -139,6 +161,7 @@ import { nextjsErrorBoundaryMissingUseClient } from "./rules/nextjs/nextjs-error
 import { nextjsGlobalErrorMissingHtmlBody } from "./rules/nextjs/nextjs-global-error-missing-html-body.js";
 import { nextjsImageMissingSizes } from "./rules/nextjs/nextjs-image-missing-sizes.js";
 import { nextjsInlineScriptMissingId } from "./rules/nextjs/nextjs-inline-script-missing-id.js";
+import { nextjsMetadataUrlConsistency } from "./rules/nextjs/nextjs-metadata-url-consistency.js";
 import { nextjsMissingMetadata } from "./rules/nextjs/nextjs-missing-metadata.js";
 import { nextjsNoAElement } from "./rules/nextjs/nextjs-no-a-element.js";
 import { nextjsNoClientFetchForServerData } from "./rules/nextjs/nextjs-no-client-fetch-for-server-data.js";
@@ -159,33 +182,53 @@ import { nextjsNoUseSearchParamsWithoutSuspense } from "./rules/nextjs/nextjs-no
 import { nextjsNoVercelOgImport } from "./rules/nextjs/nextjs-no-vercel-og-import.js";
 import { noAccessKey } from "./rules/a11y/no-access-key.js";
 import { noAdjustStateOnPropChange } from "./rules/state-and-effects/no-adjust-state-on-prop-change.js";
+import { noAllCapsBodyText } from "./rules/design/no-all-caps-body-text.js";
+import { noArbitraryPxFontSize } from "./rules/design/no-arbitrary-px-font-size.js";
+import { noAriaHiddenOnBody } from "./rules/a11y/no-aria-hidden-on-body.js";
 import { noAriaHiddenOnFocusable } from "./rules/a11y/no-aria-hidden-on-focusable.js";
+import { noAriaInvalidWithoutDescription } from "./rules/a11y/no-aria-invalid-without-description.js";
 import { noArithmeticOnOptionalChainedOperand } from "./rules/correctness/no-arithmetic-on-optional-chained-operand.js";
 import { noArrayFindResultMemberAccessWithoutGuard } from "./rules/correctness/no-array-find-result-member-access-without-guard.js";
 import { noArrayIndexAsKey } from "./rules/correctness/no-array-index-as-key.js";
 import { noArrayIndexDerefWithoutBoundsOrEmptyGuard } from "./rules/correctness/no-array-index-deref-without-bounds-or-empty-guard.js";
 import { noArrayIndexKey } from "./rules/react-builtins/no-array-index-key.js";
+import { noAssertiveStatus } from "./rules/a11y/no-assertive-status.js";
 import { noAsyncEffectCallback } from "./rules/state-and-effects/no-async-effect-callback.js";
 import { noAsyncEventHandlerWithoutReentryGuard } from "./rules/state-and-effects/no-async-event-handler-without-reentry-guard.js";
 import { noAutofocus } from "./rules/a11y/no-autofocus.js";
+import { noAutoplayWithoutMuted } from "./rules/a11y/no-autoplay-without-muted.js";
 import { noBarrelImport } from "./rules/bundle-size/no-barrel-import.js";
+import { noBlockedPaste } from "./rules/a11y/no-blocked-paste.js";
 import { noBooleanToggleWithoutFunctionalUpdate } from "./rules/state-and-effects/no-boolean-toggle-without-functional-update.js";
+import { noBrokenImageSource } from "./rules/a11y/no-broken-image-source.js";
 import { noCallComponentAsFunction } from "./rules/react-builtins/no-call-component-as-function.js";
 import { noCascadingSetState } from "./rules/state-and-effects/no-cascading-set-state.js";
 import { noChainStateUpdates } from "./rules/state-and-effects/no-chain-state-updates.js";
 import { noChildrenProp } from "./rules/react-builtins/no-children-prop.js";
+import { noClippedOverlay } from "./rules/design/no-clipped-overlay.js";
 import { noCloneElement } from "./rules/react-builtins/no-clone-element.js";
 import { noCollapsedLiteralOrChainAsValue } from "./rules/correctness/no-collapsed-literal-or-chain-as-value.js";
+import { noCommonRootFont } from "./rules/design/no-common-root-font.js";
+import { noConflictingSpringOptions } from "./rules/performance/no-conflicting-spring-options.js";
 import { noControlledInputValueWithoutStateUpdate } from "./rules/correctness/no-controlled-input-value-without-state-update.js";
+import { noCrampedContainerPadding } from "./rules/design/no-cramped-container-padding.js";
 import { noCreateContextInRender } from "./rules/state-and-effects/no-create-context-in-render.js";
+import { noCreateObjectUrlInRender } from "./rules/state-and-effects/no-create-object-url-in-render.js";
 import { noCreateObjectUrlWithoutRevoke } from "./rules/js-performance/no-create-object-url-without-revoke.js";
 import { noCreateRefInFunctionComponent } from "./rules/react-builtins/no-create-ref-in-function-component.js";
 import { noCreateStoreInRender } from "./rules/state-and-effects/no-create-store-in-render.js";
+import { noCrushedLetterSpacing } from "./rules/design/no-crushed-letter-spacing.js";
 import { noDanger } from "./rules/react-builtins/no-danger.js";
 import { noDangerWithChildren } from "./rules/react-builtins/no-danger-with-children.js";
 import { noDarkModeGlow } from "./rules/design/no-dark-mode-glow.js";
+import { noDecorativeBlurOrb } from "./rules/design/no-decorative-blur-orb.js";
+import { noDecorativeGridBackground } from "./rules/design/no-decorative-grid-background.js";
+import { noDecorativePulse } from "./rules/design/no-decorative-pulse.js";
 import { noDefaultProps } from "./rules/architecture/no-default-props.js";
+import { noDefaultPurplePageGradient } from "./rules/design/no-default-purple-page-gradient.js";
+import { noDefaultWarmPageSurface } from "./rules/design/no-default-warm-page-surface.js";
 import { noDeprecatedKeyboardEventKeycodeWhich } from "./rules/correctness/no-deprecated-keyboard-event-keycode-which.js";
+import { noDeprecatedTailwindClass } from "./rules/design/no-deprecated-tailwind-class.js";
 import { noDerivedState } from "./rules/state-and-effects/no-derived-state.js";
 import { noDerivedStateEffect } from "./rules/state-and-effects/no-derived-state-effect.js";
 import { noDerivedUseState } from "./rules/state-and-effects/no-derived-use-state.js";
@@ -197,63 +240,103 @@ import { noDisabledZoom } from "./rules/design/no-disabled-zoom.js";
 import { noDistractingElements } from "./rules/a11y/no-distracting-elements.js";
 import { noDocumentStartViewTransition } from "./rules/view-transitions/no-document-start-view-transition.js";
 import { noDocumentWrite } from "./rules/js-performance/no-document-write.js";
+import { noDuplicateStaticIdReference } from "./rules/a11y/no-duplicate-static-id-reference.js";
 import { noDynamicImportPath } from "./rules/bundle-size/no-dynamic-import-path.js";
+import { noDynamicTailwindClassFragment } from "./rules/design/no-dynamic-tailwind-class-fragment.js";
 import { noEagerNewInUseStateInitializer } from "./rules/performance/no-eager-new-in-use-state-initializer.js";
+import { noEaseInMotion } from "./rules/design/no-ease-in-motion.js";
 import { noEffectChain } from "./rules/state-and-effects/no-effect-chain.js";
 import { noEffectEventHandler } from "./rules/state-and-effects/no-effect-event-handler.js";
 import { noEffectEventInDeps } from "./rules/state-and-effects/no-effect-event-in-deps.js";
 import { noEffectWithFreshDeps } from "./rules/state-and-effects/no-effect-with-fresh-deps.js";
 import { noEffectWrapperDiscardsCallbackCleanupReturn } from "./rules/state-and-effects/no-effect-wrapper-discards-callback-cleanup-return.js";
+import { noEmojiHeadingDecoration } from "./rules/design/no-emoji-heading-decoration.js";
+import { noEmptyCardShell } from "./rules/design/no-empty-card-shell.js";
 import { noEnterSubmitWithoutImeCompositionGuard } from "./rules/correctness/no-enter-submit-without-ime-composition-guard.js";
 import { noEval } from "./rules/security/no-eval.js";
 import { noEventHandler } from "./rules/state-and-effects/no-event-handler.js";
 import { noEventTriggerState } from "./rules/state-and-effects/no-event-trigger-state.js";
+import { noExcessiveCardSurfaces } from "./rules/design/no-excessive-card-surfaces.js";
+import { noExcessiveCenteredCopy } from "./rules/design/no-excessive-centered-copy.js";
+import { noExcessiveFontFamilies } from "./rules/design/no-excessive-font-families.js";
+import { noExcessiveMotionStagger } from "./rules/performance/no-excessive-motion-stagger.js";
+import { noExcessivePillTreatment } from "./rules/design/no-excessive-pill-treatment.js";
+import { noFakeBrowserChrome } from "./rules/design/no-fake-browser-chrome.js";
 import { noFetchInEffect } from "./rules/state-and-effects/no-fetch-in-effect.js";
 import { noFetchResponseUsedWithoutStatusCheck } from "./rules/correctness/no-fetch-response-used-without-status-check.js";
 import { noFillMapElementAsKey } from "./rules/correctness/no-fill-map-element-as-key.js";
 import { noFindDomNode } from "./rules/react-builtins/no-find-dom-node.js";
+import { noFixedInsideTransformedAncestor } from "./rules/design/no-fixed-inside-transformed-ancestor.js";
+import { noFlatPageTypeScale } from "./rules/design/no-flat-page-type-scale.js";
 import { noFloatingThenInJsxHandler } from "./rules/correctness/no-floating-then-in-jsx-handler.js";
 import { noFlushSync } from "./rules/view-transitions/no-flush-sync.js";
+import { noFocusableContentInAriaHidden } from "./rules/a11y/no-focusable-content-in-aria-hidden.js";
+import { noFocusableContentInRoleText } from "./rules/a11y/no-focusable-content-in-role-text.js";
 import { noFullLodashImport } from "./rules/bundle-size/no-full-lodash-import.js";
+import { noFullViewportCenteredHero } from "./rules/design/no-full-viewport-centered-hero.js";
+import { noFullViewportWidth } from "./rules/design/no-full-viewport-width.js";
 import { noGenericHandlerNames } from "./rules/architecture/no-generic-handler-names.js";
+import { noGenericMarketingCopy } from "./rules/design/no-generic-marketing-copy.js";
+import { noGenericPurpleBlueIconGradient } from "./rules/design/no-generic-purple-blue-icon-gradient.js";
 import { noGiantComponent } from "./rules/architecture/no-giant-component.js";
 import { noGlobalCssVariableAnimation } from "./rules/performance/no-global-css-variable-animation.js";
 import { noGradientText } from "./rules/design/no-gradient-text.js";
 import { noGrayOnColoredBackground } from "./rules/design/no-gray-on-colored-background.js";
+import { noHairlineBorderWideShadow } from "./rules/design/no-hairline-border-wide-shadow.js";
+import { noHeroEyebrowChip } from "./rules/design/no-hero-eyebrow-chip.js";
+import { noHoverOnlyReveal } from "./rules/design/no-hover-only-reveal.js";
 import { noHydrationBranchOnBrowserGlobal } from "./rules/performance/no-hydration-branch-on-browser-global.js";
+import { noIconTileHeadingStack } from "./rules/design/no-icon-tile-heading-stack.js";
+import { noImageHoverTransform } from "./rules/design/no-image-hover-transform.js";
 import { noImgLazyWithHighFetchpriority } from "./rules/performance/no-img-lazy-with-high-fetchpriority.js";
+import { noImgWithoutDimensions } from "./rules/design/no-img-without-dimensions.js";
 import { noImpureCallAtModuleScope } from "./rules/correctness/no-impure-call-at-module-scope.js";
 import { noImpureStateUpdater } from "./rules/state-and-effects/no-impure-state-updater.js";
 import { noIndeterminateAttribute } from "./rules/correctness/no-indeterminate-attribute.js";
+import { noInertPointerAffordance } from "./rules/design/no-inert-pointer-affordance.js";
+import { noInertStickyPosition } from "./rules/design/no-inert-sticky-position.js";
 import { noInitializeState } from "./rules/state-and-effects/no-initialize-state.js";
 import { noInlineBounceEasing } from "./rules/design/no-inline-bounce-easing.js";
 import { noInlineExhaustiveStyle } from "./rules/design/no-inline-exhaustive-style.js";
 import { noInlineHocOnComponent } from "./rules/architecture/no-inline-hoc-on-component.js";
 import { noInlinePropOnMemoComponent } from "./rules/performance/no-inline-prop-on-memo-component.js";
 import { noInteractiveElementToNoninteractiveRole } from "./rules/a11y/no-interactive-element-to-noninteractive-role.js";
+import { noInvalidProgressRange } from "./rules/a11y/no-invalid-progress-range.js";
+import { noInvisibleFocusControl } from "./rules/design/no-invisible-focus-control.js";
 import { noIsMounted } from "./rules/react-builtins/no-is-mounted.js";
+import { noItalicSerifDisplayHeading } from "./rules/design/no-italic-serif-display-heading.js";
 import { noJsonParseStringifyClone } from "./rules/js-performance/no-json-parse-stringify-clone.js";
 import { noJsxElementType } from "./rules/correctness/no-jsx-element-type.js";
 import { noJustifiedText } from "./rules/design/no-justified-text.js";
 import { noLargeAnimatedBlur } from "./rules/performance/no-large-animated-blur.js";
 import { noLayoutPropertyAnimation } from "./rules/performance/no-layout-property-animation.js";
+import { noLayoutShiftingInteractionState } from "./rules/design/no-layout-shifting-interaction-state.js";
 import { noLayoutTransitionInline } from "./rules/design/no-layout-transition-inline.js";
 import { noLegacyClassLifecycles } from "./rules/architecture/no-legacy-class-lifecycles.js";
 import { noLegacyContextApi } from "./rules/architecture/no-legacy-context-api.js";
 import { noLoadingFlagResetOutsideFinally } from "./rules/state-and-effects/no-loading-flag-reset-outside-finally.js";
 import { noLocaleFormatInRender } from "./rules/performance/no-locale-format-in-render.js";
 import { noLongTransitionDuration } from "./rules/design/no-long-transition-duration.js";
+import { noLowContrastInlineStyle } from "./rules/design/no-low-contrast-inline-style.js";
+import { noManufacturedContrastCopy } from "./rules/design/no-manufactured-contrast-copy.js";
 import { noManyBooleanProps } from "./rules/architecture/no-many-boolean-props.js";
 import { noMatchMediaInStateInitializer } from "./rules/performance/no-match-media-in-state-initializer.js";
 import { noMirrorPropEffect } from "./rules/state-and-effects/no-mirror-prop-effect.js";
+import { noMixedIconLibraries } from "./rules/design/no-mixed-icon-libraries.js";
+import { noMixedSrcsetDescriptors } from "./rules/correctness/no-mixed-srcset-descriptors.js";
 import { noMoment } from "./rules/bundle-size/no-moment.js";
+import { noMonotonousPageSpacing } from "./rules/design/no-monotonous-page-spacing.js";
 import { noMultiComp } from "./rules/react-builtins/no-multi-comp.js";
+import { noMultipleLabelsForControl } from "./rules/a11y/no-multiple-labels-for-control.js";
+import { noMultipleMainLandmarks } from "./rules/a11y/no-multiple-main-landmarks.js";
+import { noMultipleUnlabeledNavigationLandmarks } from "./rules/a11y/no-multiple-unlabeled-navigation-landmarks.js";
 import { noMutableInDeps } from "./rules/state-and-effects/no-mutable-in-deps.js";
 import { noMutateQueriedDomNodeInComponent } from "./rules/correctness/no-mutate-queried-dom-node-in-component.js";
 import { noMutateThenSetOrReturnSameReference } from "./rules/state-and-effects/no-mutate-then-set-or-return-same-reference.js";
 import { noMutatingArrayMethodOnPropOrHookResult } from "./rules/correctness/no-mutating-array-method-on-prop-or-hook-result.js";
 import { noMutatingReducerState } from "./rules/state-and-effects/no-mutating-reducer-state.js";
 import { noNamespace } from "./rules/react-builtins/no-namespace.js";
+import { noNestedCardSurface } from "./rules/design/no-nested-card-surface.js";
 import { noNestedComponentDefinition } from "./rules/architecture/no-nested-component-definition.js";
 import { noNonLiteralSelectorQueryWithoutTryCatch } from "./rules/correctness/no-non-literal-selector-query-without-try-catch.js";
 import { noNonNullAssertionOnMaybeUndefinedResult } from "./rules/correctness/no-non-null-assertion-on-maybe-undefined-result.js";
@@ -261,63 +344,105 @@ import { noNondeterministicIdValueInRenderBody } from "./rules/correctness/no-no
 import { noNoninteractiveElementInteractions } from "./rules/a11y/no-noninteractive-element-interactions.js";
 import { noNoninteractiveElementToInteractiveRole } from "./rules/a11y/no-noninteractive-element-to-interactive-role.js";
 import { noNoninteractiveTabindex } from "./rules/a11y/no-noninteractive-tabindex.js";
+import { noNonresizableTextarea } from "./rules/a11y/no-nonresizable-textarea.js";
 import { noNullishCoalescingArithmeticPrecedence } from "./rules/correctness/no-nullish-coalescing-arithmetic-precedence.js";
+import { noNumberedSectionMarkers } from "./rules/design/no-numbered-section-markers.js";
 import { noObjectKeysValuesEntriesOnMaybeUndefined } from "./rules/correctness/no-object-keys-values-entries-on-maybe-undefined.js";
 import { noObjectOrArrayCoercedToStringInTemplateLiteral } from "./rules/correctness/no-object-or-array-coerced-to-string-in-template-literal.js";
 import { noOutlineNone } from "./rules/design/no-outline-none.js";
+import { noOverloadedHoverState } from "./rules/design/no-overloaded-hover-state.js";
+import { noOversizedLongHeading } from "./rules/design/no-oversized-long-heading.js";
+import { noOverwideTextMeasure } from "./rules/design/no-overwide-text-measure.js";
 import { noPassDataToParent } from "./rules/state-and-effects/no-pass-data-to-parent.js";
 import { noPassLiveStateToParent } from "./rules/state-and-effects/no-pass-live-state-to-parent.js";
 import { noPermanentWillChange } from "./rules/performance/no-permanent-will-change.js";
+import { noPillNavigationCount } from "./rules/design/no-pill-navigation-count.js";
+import { noPlaceholderOnlyField } from "./rules/a11y/no-placeholder-only-field.js";
+import { noPlaceholderPersonaCopy } from "./rules/design/no-placeholder-persona-copy.js";
+import { noPointerDisabledEnabledControl } from "./rules/design/no-pointer-disabled-enabled-control.js";
 import { noPolymorphicChildren } from "./rules/correctness/no-polymorphic-children.js";
 import { noPredicateFunctionReferenceInBooleanPosition } from "./rules/correctness/no-predicate-function-reference-in-boolean-position.js";
+import { noPresentationRoleConflict } from "./rules/a11y/no-presentation-role-conflict.js";
 import { noPreventDefault } from "./rules/correctness/no-prevent-default.js";
 import { noPromiseThenSideEffectInEffectWithoutCatch } from "./rules/state-and-effects/no-promise-then-side-effect-in-effect-without-catch.js";
 import { noPropCallbackInEffect } from "./rules/state-and-effects/no-prop-callback-in-effect.js";
 import { noPropCallbackInRender } from "./rules/state-and-effects/no-prop-callback-in-render.js";
 import { noPropTypes } from "./rules/architecture/no-prop-types.js";
 import { noPureBlackBackground } from "./rules/design/no-pure-black-background.js";
+import { noPureBlackShadow } from "./rules/design/no-pure-black-shadow.js";
 import { noRandomKey } from "./rules/correctness/no-random-key.js";
 import { noReactChildren } from "./rules/react-builtins/no-react-children.js";
 import { noReactDomDeprecatedApis } from "./rules/architecture/no-react-dom-deprecated-apis.js";
 import { noReact19DeprecatedApis } from "./rules/architecture/no-react19-deprecated-apis.js";
+import { noRedundantDisplayClass } from "./rules/design/no-redundant-display-class.js";
 import { noRedundantRoles } from "./rules/a11y/no-redundant-roles.js";
 import { noRedundantShouldComponentUpdate } from "./rules/react-builtins/no-redundant-should-component-update.js";
+import { noRedundantTitleTooltip } from "./rules/design/no-redundant-title-tooltip.js";
 import { noRefCallbackCleanupBeforeReact19 } from "./rules/correctness/no-ref-callback-cleanup-before-react-19.js";
 import { noRefCurrentInRender } from "./rules/state-and-effects/no-ref-current-in-render.js";
 import { noRenderInRender } from "./rules/architecture/no-render-in-render.js";
 import { noRenderPropChildren } from "./rules/architecture/no-render-prop-children.js";
 import { noRenderReturnValue } from "./rules/react-builtins/no-render-return-value.js";
+import { noRepeatedEmojiTiles } from "./rules/design/no-repeated-emoji-tiles.js";
+import { noRepeatedGlassSurfaces } from "./rules/design/no-repeated-glass-surfaces.js";
+import { noRepeatedHoverScale } from "./rules/design/no-repeated-hover-scale.js";
+import { noRepeatedKickerLabels } from "./rules/design/no-repeated-kicker-labels.js";
+import { noRepeatedPlaceholderNavigation } from "./rules/design/no-repeated-placeholder-navigation.js";
+import { noRepeatedSectionShells } from "./rules/design/no-repeated-section-shells.js";
+import { noRepeatingGradientDecoration } from "./rules/design/no-repeating-gradient-decoration.js";
 import { noResetAllStateOnPropChange } from "./rules/state-and-effects/no-reset-all-state-on-prop-change.js";
 import { noScaleFromZero } from "./rules/performance/no-scale-from-zero.js";
 import { noSecretsInClientCode } from "./rules/security/no-secrets-in-client-code.js";
 import { noSelfUpdatingEffect } from "./rules/state-and-effects/no-self-updating-effect.js";
+import { noServerSideImageMap } from "./rules/a11y/no-server-side-image-map.js";
 import { noSetState } from "./rules/react-builtins/no-set-state.js";
 import { noSetStateAfterAwaitInEffect } from "./rules/state-and-effects/no-set-state-after-await-in-effect.js";
 import { noSetStateInRender } from "./rules/state-and-effects/no-set-state-in-render.js";
 import { noSideEffectInStateUpdaterFunction } from "./rules/state-and-effects/no-side-effect-in-state-updater-function.js";
 import { noSideTabBorder } from "./rules/design/no-side-tab-border.js";
+import { noSkippedHeadingLevel } from "./rules/a11y/no-skipped-heading-level.js";
+import { noSmallFormControlText } from "./rules/design/no-small-form-control-text.js";
+import { noSmoothScrollWithoutReducedMotion } from "./rules/design/no-smooth-scroll-without-reduced-motion.js";
 import { noSpreadAccumulatorInReduce } from "./rules/js-performance/no-spread-accumulator-in-reduce.js";
 import { noSpreadPropsOverDefaultsClobbersWithUndefined } from "./rules/state-and-effects/no-spread-props-over-defaults-clobbers-with-undefined.js";
+import { noSrcsetWithoutSizes } from "./rules/performance/no-srcset-without-sizes.js";
 import { noStaleTimerRef } from "./rules/state-and-effects/no-stale-timer-ref.js";
 import { noStaticElementInteractions } from "./rules/a11y/no-static-element-interactions.js";
+import { noStaticMotionConfigNever } from "./rules/a11y/no-static-motion-config-never.js";
 import { noStringFalseOnBooleanAttribute } from "./rules/react-builtins/no-string-false-on-boolean-attribute.js";
 import { noStringRefs } from "./rules/react-builtins/no-string-refs.js";
+import { noSvgCurrentcolorWithFillClass } from "./rules/design/no-svg-currentcolor-with-fill-class.js";
+import { noSymmetricTextButtonPadding } from "./rules/design/no-symmetric-text-button-padding.js";
 import { noSyncXhr } from "./rules/js-performance/no-sync-xhr.js";
+import { noTailwindLayoutTransition } from "./rules/design/no-tailwind-layout-transition.js";
 import { noThisInSfc } from "./rules/react-builtins/no-this-in-sfc.js";
+import { noTightAllCapsHeading } from "./rules/design/no-tight-all-caps-heading.js";
+import { noTightBodyLeading } from "./rules/design/no-tight-body-leading.js";
+import { noTightDisplayTracking } from "./rules/design/no-tight-display-tracking.js";
 import { noTinyText } from "./rules/design/no-tiny-text.js";
+import { noTinyUppercaseTrackedLabel } from "./rules/design/no-tiny-uppercase-tracked-label.js";
 import { noTransitionAll } from "./rules/performance/no-transition-all.js";
+import { noTransitionedFocusRing } from "./rules/design/no-transitioned-focus-ring.js";
+import { noUnboundedAnimationFrameLoop } from "./rules/performance/no-unbounded-animation-frame-loop.js";
 import { noUncontrolledInput } from "./rules/correctness/no-uncontrolled-input.js";
 import { noUndeferredThirdParty } from "./rules/bundle-size/no-undeferred-third-party.js";
+import { noUndersizedIconButton } from "./rules/design/no-undersized-icon-button.js";
 import { noUnescapedDynamicStringInRegexp } from "./rules/correctness/no-unescaped-dynamic-string-in-regexp.js";
 import { noUnescapedEntities } from "./rules/react-builtins/no-unescaped-entities.js";
+import { noUngatedTailwindAnimation } from "./rules/a11y/no-ungated-tailwind-animation.js";
 import { noUnguardedBrowserGlobalAtModuleScope } from "./rules/correctness/no-unguarded-browser-global-at-module-scope.js";
 import { noUnguardedBrowserGlobalInRenderOrHookInit } from "./rules/performance/no-unguarded-browser-global-in-render-or-hook-init.js";
 import { noUnguardedNumericInputParse } from "./rules/correctness/no-unguarded-numeric-input-parse.js";
 import { noUnguardedThrowingParseCall } from "./rules/correctness/no-unguarded-throwing-parse-call.js";
+import { noUniformFeatureCardGrid } from "./rules/design/no-uniform-feature-card-grid.js";
+import { noUninformativeAriaLabel } from "./rules/a11y/no-uninformative-aria-label.js";
 import { noUnknownProperty } from "./rules/react-builtins/no-unknown-property.js";
 import { noUnsafe } from "./rules/react-builtins/no-unsafe.js";
 import { noUnsafeJsonParse } from "./rules/correctness/no-unsafe-json-parse.js";
 import { noUnstableNestedComponents } from "./rules/react-builtins/no-unstable-nested-components.js";
+import { noUnthrottledScrollMutation } from "./rules/performance/no-unthrottled-scroll-mutation.js";
+import { noUppercaseMonoLabel } from "./rules/design/no-uppercase-mono-label.js";
+import { noUppercaseTrackedNavigationLabel } from "./rules/design/no-uppercase-tracked-navigation-label.js";
 import { noUsememoSimpleExpression } from "./rules/performance/no-usememo-simple-expression.js";
 import { noWholeObjectDefaultLosingPerKeyDefaults } from "./rules/correctness/no-whole-object-default-losing-per-key-defaults.js";
 import { noWholeObjectDepWithMemberReads } from "./rules/state-and-effects/no-whole-object-dep-with-member-reads.js";
@@ -329,12 +454,14 @@ import { onlyExportComponents } from "./rules/react-builtins/only-export-compone
 import { packageMetadataSecret } from "./rules/security-scan/package-metadata-secret.js";
 import { pathTraversalRisk } from "./rules/security-scan/path-traversal-risk.js";
 import { pluginUpdateTrustRisk } from "./rules/security-scan/plugin-update-trust-risk.js";
+import { pointerCaptureNeedsCancelHandler } from "./rules/correctness/pointer-capture-needs-cancel-handler.js";
 import { postmessageOriginRisk } from "./rules/security-scan/postmessage-origin-risk.js";
 import { preactNoChildrenLength } from "./rules/preact/preact-no-children-length.js";
 import { preactNoReactHooksImport } from "./rules/preact/preact-no-react-hooks-import.js";
 import { preactNoRenderArguments } from "./rules/preact/preact-no-render-arguments.js";
 import { preactPreferOndblclick } from "./rules/preact/preact-prefer-ondblclick.js";
 import { preactPreferOninput } from "./rules/preact/preact-prefer-oninput.js";
+import { preferDvhOverVh } from "./rules/design/prefer-dvh-over-vh.js";
 import { preferDynamicImport } from "./rules/bundle-size/prefer-dynamic-import.js";
 import { preferEs6Class } from "./rules/react-builtins/prefer-es6-class.js";
 import { preferExplicitVariants } from "./rules/architecture/prefer-explicit-variants.js";
@@ -342,8 +469,11 @@ import { preferFunctionComponent } from "./rules/react-builtins/prefer-function-
 import { preferHtmlDialog } from "./rules/a11y/prefer-html-dialog.js";
 import { preferModuleScopePureFunction } from "./rules/architecture/prefer-module-scope-pure-function.js";
 import { preferModuleScopeStaticValue } from "./rules/architecture/prefer-module-scope-static-value.js";
+import { preferMotionTransformProperty } from "./rules/performance/prefer-motion-transform-property.js";
 import { preferStableEmptyFallback } from "./rules/performance/prefer-stable-empty-fallback.js";
+import { preferTabularNumericData } from "./rules/design/prefer-tabular-numeric-data.js";
 import { preferTagOverRole } from "./rules/a11y/prefer-tag-over-role.js";
+import { preferTruncateShorthand } from "./rules/design/prefer-truncate-shorthand.js";
 import { preferUseEffectEvent } from "./rules/state-and-effects/prefer-use-effect-event.js";
 import { preferUseSyncExternalStore } from "./rules/state-and-effects/prefer-use-sync-external-store.js";
 import { preferUseReducer } from "./rules/state-and-effects/prefer-use-reducer.js";
@@ -384,7 +514,9 @@ import { renderingSvgPrecision } from "./rules/correctness/rendering-svg-precisi
 import { renderingUsetransitionLoading } from "./rules/performance/rendering-usetransition-loading.js";
 import { repositorySecretFile } from "./rules/security-scan/repository-secret-file.js";
 import { requestBodyMassAssignment } from "./rules/security-scan/request-body-mass-assignment.js";
+import { requireAutoplayVideoPoster } from "./rules/design/require-autoplay-video-poster.js";
 import { requireRenderReturn } from "./rules/react-builtins/require-render-return.js";
+import { requireScaleRevealTransformOrigin } from "./rules/design/require-scale-reveal-transform-origin.js";
 import { rerenderDeferReadsHook } from "./rules/state-and-effects/rerender-defer-reads-hook.js";
 import { rerenderDependencies } from "./rules/state-and-effects/rerender-dependencies.js";
 import { rerenderDerivedStateFromHook } from "./rules/performance/rerender-derived-state-from-hook.js";
@@ -429,6 +561,7 @@ import { rnPressableSharedValueMutation } from "./rules/react-native/rn-pressabl
 import { rnScrollviewDynamicPadding } from "./rules/react-native/rn-scrollview-dynamic-padding.js";
 import { rnScrollviewFlexInContentContainer } from "./rules/react-native/rn-scrollview-flex-in-content-container.js";
 import { rnStylePreferBoxShadow } from "./rules/react-native/rn-style-prefer-box-shadow.js";
+import { roleButtonRequiresCompleteKeyboardActivation } from "./rules/a11y/role-button-requires-complete-keyboard-activation.js";
 import { roleHasRequiredAriaProps } from "./rules/a11y/role-has-required-aria-props.js";
 import { roleSupportsAriaProps } from "./rules/a11y/role-supports-aria-props.js";
 import { rulesOfHooks } from "./rules/react-builtins/rules-of-hooks.js";
@@ -443,6 +576,7 @@ import { serverFetchWithoutRevalidate } from "./rules/server/server-fetch-withou
 import { serverHoistStaticIo } from "./rules/server/server-hoist-static-io.js";
 import { serverNoMutableModuleState } from "./rules/server/server-no-mutable-module-state.js";
 import { serverSequentialIndependentAwait } from "./rules/server/server-sequential-independent-await.js";
+import { shadcnTabsTriggerRequiresList } from "./rules/correctness/shadcn-tabs-trigger-requires-list.js";
 import { stateInConstructor } from "./rules/react-builtins/state-in-constructor.js";
 import { stylePropObject } from "./rules/react-builtins/style-prop-object.js";
 import { styledComponentsDuplicateCssPropertyInBlock } from "./rules/design/styled-components-duplicate-css-property-in-block.js";
@@ -474,6 +608,8 @@ import { useLazyMotion } from "./rules/bundle-size/use-lazy-motion.js";
 import { valtioNoProxyReadInRender } from "./rules/valtio/valtio-no-proxy-read-in-render.js";
 import { valtioNoSnapshotInCallback } from "./rules/valtio/valtio-no-snapshot-in-callback.js";
 import { voidDomElementsNoChildren } from "./rules/react-builtins/void-dom-elements-no-children.js";
+import { waapiAnimationInRender } from "./rules/correctness/waapi-animation-in-render.js";
+import { webAnimationOffsetsValid } from "./rules/correctness/web-animation-offsets-valid.js";
 import { webhookSignatureRisk } from "./rules/security-scan/webhook-signature-risk.js";
 import { windowOpenWithoutNoopener } from "./rules/security/window-open-without-noopener.js";
 import { zodV4NoDeprecatedErrorApis } from "./rules/zod/zod-v4-no-deprecated-error-apis.js";
@@ -596,6 +732,18 @@ export const reactDoctorRules = [
       requires: [
         ...new Set<Capability>(["react", ...(ariaActivedescendantHasTabindex.requires ?? [])]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/aria-braille-equivalent",
+    id: "aria-braille-equivalent",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...ariaBrailleEquivalent,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(ariaBrailleEquivalent.requires ?? [])])],
     },
   },
   {
@@ -912,6 +1060,20 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/data-table-requires-accessible-name",
+    id: "data-table-requires-accessible-name",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...dataTableRequiresAccessibleName,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>(["react", ...(dataTableRequiresAccessibleName.requires ?? [])]),
+      ],
+    },
+  },
+  {
     key: "react-doctor/debounce-no-cleanup",
     id: "debounce-no-cleanup",
     source: "react-doctor",
@@ -993,6 +1155,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Accessibility",
       requires: [...new Set<Capability>(["react", ...(noVagueButtonLabel.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/details-requires-summary",
+    id: "details-requires-summary",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...detailsRequiresSummary,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(detailsRequiresSummary.requires ?? [])])],
     },
   },
   {
@@ -1103,6 +1277,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/empty-table-header",
+    id: "empty-table-header",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...emptyTableHeader,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(emptyTableHeader.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/exhaustive-deps",
     id: "exhaustive-deps",
     source: "react-doctor",
@@ -1124,6 +1310,18 @@ export const reactDoctorRules = [
       framework: "react-native",
       category: "Bugs",
       tags: [...new Set(["react-native", ...(expoNoNonInlinedEnv.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/fieldset-requires-legend",
+    id: "fieldset-requires-legend",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...fieldsetRequiresLegend,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(fieldsetRequiresLegend.requires ?? [])])],
     },
   },
   {
@@ -1196,6 +1394,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Maintainability",
       requires: [...new Set<Capability>(["react", ...(forbidElements.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/form-control-requires-name",
+    id: "form-control-requires-name",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...formControlRequiresName,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(formControlRequiresName.requires ?? [])])],
     },
   },
   {
@@ -1285,6 +1495,17 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/html-label-has-single-control",
+    id: "html-label-has-single-control",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...htmlLabelHasSingleControl,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
     key: "react-doctor/html-no-invalid-paragraph-child",
     id: "html-no-invalid-paragraph-child",
     source: "react-doctor",
@@ -1307,6 +1528,17 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/html-no-nested-form",
+    id: "html-no-nested-form",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...htmlNoNestedForm,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
     key: "react-doctor/html-no-nested-interactive",
     id: "html-no-nested-interactive",
     source: "react-doctor",
@@ -1314,7 +1546,19 @@ export const reactDoctorRules = [
     rule: {
       ...htmlNoNestedInteractive,
       framework: "global",
-      category: "Bugs",
+      category: "Accessibility",
+    },
+  },
+  {
+    key: "react-doctor/html-xml-lang-mismatch",
+    id: "html-xml-lang-mismatch",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...htmlXmlLangMismatch,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(htmlXmlLangMismatch.requires ?? [])])],
     },
   },
   {
@@ -1339,6 +1583,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Security",
       requires: [...new Set<Capability>(["react", ...(iframeMissingSandbox.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/iframe-title-unique",
+    id: "iframe-title-unique",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...iframeTitleUnique,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(iframeTitleUnique.requires ?? [])])],
     },
   },
   {
@@ -1978,6 +2234,141 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/motion-animate-presence-must-outlive-child",
+    id: "motion-animate-presence-must-outlive-child",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionAnimatePresenceMustOutliveChild,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-animate-presence-requires-key",
+    id: "motion-animate-presence-requires-key",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionAnimatePresenceRequiresKey,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-animate-presence-wait-single-child",
+    id: "motion-animate-presence-wait-single-child",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionAnimatePresenceWaitSingleChild,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-create-in-render",
+    id: "motion-create-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionCreateInRender,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-drag-axis-constraint-mismatch",
+    id: "motion-drag-axis-constraint-mismatch",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionDragAxisConstraintMismatch,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-imperative-animation-in-render",
+    id: "motion-imperative-animation-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionImperativeAnimationInRender,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-keyframe-times-mismatch",
+    id: "motion-keyframe-times-mismatch",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionKeyframeTimesMismatch,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-layout-on-inline-element",
+    id: "motion-layout-on-inline-element",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionLayoutOnInlineElement,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-unstable-layout-id-in-iteration",
+    id: "motion-unstable-layout-id-in-iteration",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionUnstableLayoutIdInIteration,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-use-transform-range-length",
+    id: "motion-use-transform-range-length",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionUseTransformRangeLength,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/motion-value-constructor-in-render",
+    id: "motion-value-constructor-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionValueConstructorInRender,
+      framework: "global",
+      category: "Performance",
+      requires: [
+        ...new Set<Capability>(["react", ...(motionValueConstructorInRender.requires ?? [])]),
+      ],
+    },
+  },
+  {
+    key: "react-doctor/motion-value-subscription-in-render",
+    id: "motion-value-subscription-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...motionValueSubscriptionInRender,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
     key: "react-doctor/mouse-events-have-key-events",
     id: "mouse-events-have-key-events",
     source: "react-doctor",
@@ -2051,6 +2442,17 @@ export const reactDoctorRules = [
     originallyExternal: false,
     rule: {
       ...nextjsInlineScriptMissingId,
+      framework: "nextjs",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/nextjs-metadata-url-consistency",
+    id: "nextjs-metadata-url-consistency",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...nextjsMetadataUrlConsistency,
       framework: "nextjs",
       category: "Bugs",
     },
@@ -2278,6 +2680,42 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-all-caps-body-text",
+    id: "no-all-caps-body-text",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noAllCapsBodyText,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noAllCapsBodyText.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-arbitrary-px-font-size",
+    id: "no-arbitrary-px-font-size",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noArbitraryPxFontSize,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noArbitraryPxFontSize.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-aria-hidden-on-body",
+    id: "no-aria-hidden-on-body",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noAriaHiddenOnBody,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noAriaHiddenOnBody.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-aria-hidden-on-focusable",
     id: "no-aria-hidden-on-focusable",
     source: "react-doctor",
@@ -2287,6 +2725,20 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Accessibility",
       requires: [...new Set<Capability>(["react", ...(noAriaHiddenOnFocusable.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-aria-invalid-without-description",
+    id: "no-aria-invalid-without-description",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noAriaInvalidWithoutDescription,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>(["react", ...(noAriaInvalidWithoutDescription.requires ?? [])]),
+      ],
     },
   },
   {
@@ -2346,6 +2798,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-assertive-status",
+    id: "no-assertive-status",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noAssertiveStatus,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noAssertiveStatus.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-async-effect-callback",
     id: "no-async-effect-callback",
     source: "react-doctor",
@@ -2387,6 +2851,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-autoplay-without-muted",
+    id: "no-autoplay-without-muted",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noAutoplayWithoutMuted,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noAutoplayWithoutMuted.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-barrel-import",
     id: "no-barrel-import",
     source: "react-doctor",
@@ -2395,6 +2871,18 @@ export const reactDoctorRules = [
       ...noBarrelImport,
       framework: "global",
       category: "Performance",
+    },
+  },
+  {
+    key: "react-doctor/no-blocked-paste",
+    id: "no-blocked-paste",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noBlockedPaste,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noBlockedPaste.requires ?? [])])],
     },
   },
   {
@@ -2412,6 +2900,18 @@ export const reactDoctorRules = [
           ...(noBooleanToggleWithoutFunctionalUpdate.requires ?? []),
         ]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/no-broken-image-source",
+    id: "no-broken-image-source",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noBrokenImageSource,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(noBrokenImageSource.requires ?? [])])],
     },
   },
   {
@@ -2463,6 +2963,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-clipped-overlay",
+    id: "no-clipped-overlay",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noClippedOverlay,
+      framework: "global",
+      category: "Bugs",
+      tags: [...new Set(["design", ...(noClippedOverlay.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-clone-element",
     id: "no-clone-element",
     source: "react-doctor",
@@ -2486,6 +2998,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-common-root-font",
+    id: "no-common-root-font",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noCommonRootFont,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noCommonRootFont.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-conflicting-spring-options",
+    id: "no-conflicting-spring-options",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noConflictingSpringOptions,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(noConflictingSpringOptions.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-controlled-input-value-without-state-update",
     id: "no-controlled-input-value-without-state-update",
     source: "react-doctor",
@@ -2494,6 +3030,18 @@ export const reactDoctorRules = [
       ...noControlledInputValueWithoutStateUpdate,
       framework: "global",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/no-cramped-container-padding",
+    id: "no-cramped-container-padding",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noCrampedContainerPadding,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noCrampedContainerPadding.tags ?? [])])],
     },
   },
   {
@@ -2506,6 +3054,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noCreateContextInRender.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-create-object-url-in-render",
+    id: "no-create-object-url-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noCreateObjectUrlInRender,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(noCreateObjectUrlInRender.requires ?? [])])],
     },
   },
   {
@@ -2546,6 +3106,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-crushed-letter-spacing",
+    id: "no-crushed-letter-spacing",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noCrushedLetterSpacing,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noCrushedLetterSpacing.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-danger",
     id: "no-danger",
     source: "react-doctor",
@@ -2578,6 +3150,43 @@ export const reactDoctorRules = [
       ...noDarkModeGlow,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noDarkModeGlow.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-decorative-blur-orb",
+    id: "no-decorative-blur-orb",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDecorativeBlurOrb,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDecorativeBlurOrb.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-decorative-grid-background",
+    id: "no-decorative-grid-background",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDecorativeGridBackground,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDecorativeGridBackground.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-decorative-pulse",
+    id: "no-decorative-pulse",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDecorativePulse,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDecorativePulse.tags ?? [])])],
     },
   },
   {
@@ -2592,6 +3201,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-default-purple-page-gradient",
+    id: "no-default-purple-page-gradient",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDefaultPurplePageGradient,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDefaultPurplePageGradient.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-default-warm-page-surface",
+    id: "no-default-warm-page-surface",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDefaultWarmPageSurface,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDefaultWarmPageSurface.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-deprecated-keyboard-event-keycode-which",
     id: "no-deprecated-keyboard-event-keycode-which",
     source: "react-doctor",
@@ -2600,6 +3233,18 @@ export const reactDoctorRules = [
       ...noDeprecatedKeyboardEventKeycodeWhich,
       framework: "global",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/no-deprecated-tailwind-class",
+    id: "no-deprecated-tailwind-class",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDeprecatedTailwindClass,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDeprecatedTailwindClass.tags ?? [])])],
     },
   },
   {
@@ -2695,6 +3340,7 @@ export const reactDoctorRules = [
       ...noDisabledZoom,
       framework: "global",
       category: "Accessibility",
+      tags: [...new Set(["design", ...(noDisabledZoom.tags ?? [])])],
     },
   },
   {
@@ -2735,6 +3381,20 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-duplicate-static-id-reference",
+    id: "no-duplicate-static-id-reference",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noDuplicateStaticIdReference,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>(["react", ...(noDuplicateStaticIdReference.requires ?? [])]),
+      ],
+    },
+  },
+  {
     key: "react-doctor/no-dynamic-import-path",
     id: "no-dynamic-import-path",
     source: "react-doctor",
@@ -2743,6 +3403,18 @@ export const reactDoctorRules = [
       ...noDynamicImportPath,
       framework: "global",
       category: "Performance",
+    },
+  },
+  {
+    key: "react-doctor/no-dynamic-tailwind-class-fragment",
+    id: "no-dynamic-tailwind-class-fragment",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noDynamicTailwindClassFragment,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noDynamicTailwindClassFragment.tags ?? [])])],
     },
   },
   {
@@ -2757,6 +3429,18 @@ export const reactDoctorRules = [
       requires: [
         ...new Set<Capability>(["react", ...(noEagerNewInUseStateInitializer.requires ?? [])]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/no-ease-in-motion",
+    id: "no-ease-in-motion",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noEaseInMotion,
+      framework: "global",
+      category: "Performance",
+      tags: [...new Set(["design", ...(noEaseInMotion.tags ?? [])])],
     },
   },
   {
@@ -2825,6 +3509,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-emoji-heading-decoration",
+    id: "no-emoji-heading-decoration",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noEmojiHeadingDecoration,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noEmojiHeadingDecoration.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-empty-card-shell",
+    id: "no-empty-card-shell",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noEmptyCardShell,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noEmptyCardShell.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-enter-submit-without-ime-composition-guard",
     id: "no-enter-submit-without-ime-composition-guard",
     source: "react-doctor",
@@ -2868,6 +3576,78 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noEventTriggerState.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-excessive-card-surfaces",
+    id: "no-excessive-card-surfaces",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noExcessiveCardSurfaces,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noExcessiveCardSurfaces.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-excessive-centered-copy",
+    id: "no-excessive-centered-copy",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noExcessiveCenteredCopy,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noExcessiveCenteredCopy.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-excessive-font-families",
+    id: "no-excessive-font-families",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noExcessiveFontFamilies,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noExcessiveFontFamilies.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-excessive-motion-stagger",
+    id: "no-excessive-motion-stagger",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noExcessiveMotionStagger,
+      framework: "global",
+      category: "Performance",
+      requires: [...new Set<Capability>(["react", ...(noExcessiveMotionStagger.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-excessive-pill-treatment",
+    id: "no-excessive-pill-treatment",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noExcessivePillTreatment,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noExcessivePillTreatment.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-fake-browser-chrome",
+    id: "no-fake-browser-chrome",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFakeBrowserChrome,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noFakeBrowserChrome.tags ?? [])])],
     },
   },
   {
@@ -2917,6 +3697,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-fixed-inside-transformed-ancestor",
+    id: "no-fixed-inside-transformed-ancestor",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFixedInsideTransformedAncestor,
+      framework: "global",
+      category: "Bugs",
+      tags: [...new Set(["design", ...(noFixedInsideTransformedAncestor.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-flat-page-type-scale",
+    id: "no-flat-page-type-scale",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFlatPageTypeScale,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noFlatPageTypeScale.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-floating-then-in-jsx-handler",
     id: "no-floating-then-in-jsx-handler",
     source: "react-doctor",
@@ -2940,6 +3744,34 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-focusable-content-in-aria-hidden",
+    id: "no-focusable-content-in-aria-hidden",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFocusableContentInAriaHidden,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>(["react", ...(noFocusableContentInAriaHidden.requires ?? [])]),
+      ],
+    },
+  },
+  {
+    key: "react-doctor/no-focusable-content-in-role-text",
+    id: "no-focusable-content-in-role-text",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noFocusableContentInRoleText,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>(["react", ...(noFocusableContentInRoleText.requires ?? [])]),
+      ],
+    },
+  },
+  {
     key: "react-doctor/no-full-lodash-import",
     id: "no-full-lodash-import",
     source: "react-doctor",
@@ -2951,6 +3783,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-full-viewport-centered-hero",
+    id: "no-full-viewport-centered-hero",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFullViewportCenteredHero,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noFullViewportCenteredHero.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-full-viewport-width",
+    id: "no-full-viewport-width",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noFullViewportWidth,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noFullViewportWidth.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-generic-handler-names",
     id: "no-generic-handler-names",
     source: "react-doctor",
@@ -2959,6 +3815,30 @@ export const reactDoctorRules = [
       ...noGenericHandlerNames,
       framework: "global",
       category: "Maintainability",
+    },
+  },
+  {
+    key: "react-doctor/no-generic-marketing-copy",
+    id: "no-generic-marketing-copy",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noGenericMarketingCopy,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noGenericMarketingCopy.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-generic-purple-blue-icon-gradient",
+    id: "no-generic-purple-blue-icon-gradient",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noGenericPurpleBlueIconGradient,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noGenericPurpleBlueIconGradient.tags ?? [])])],
     },
   },
   {
@@ -2995,6 +3875,7 @@ export const reactDoctorRules = [
       ...noGradientText,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noGradientText.tags ?? [])])],
     },
   },
   {
@@ -3006,6 +3887,43 @@ export const reactDoctorRules = [
       ...noGrayOnColoredBackground,
       framework: "global",
       category: "Accessibility",
+      tags: [...new Set(["design", ...(noGrayOnColoredBackground.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-hairline-border-wide-shadow",
+    id: "no-hairline-border-wide-shadow",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noHairlineBorderWideShadow,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noHairlineBorderWideShadow.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-hero-eyebrow-chip",
+    id: "no-hero-eyebrow-chip",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noHeroEyebrowChip,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noHeroEyebrowChip.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-hover-only-reveal",
+    id: "no-hover-only-reveal",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noHoverOnlyReveal,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noHoverOnlyReveal.tags ?? [])])],
     },
   },
   {
@@ -3023,6 +3941,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-icon-tile-heading-stack",
+    id: "no-icon-tile-heading-stack",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noIconTileHeadingStack,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noIconTileHeadingStack.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-image-hover-transform",
+    id: "no-image-hover-transform",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noImageHoverTransform,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noImageHoverTransform.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-img-lazy-with-high-fetchpriority",
     id: "no-img-lazy-with-high-fetchpriority",
     source: "react-doctor",
@@ -3034,6 +3976,18 @@ export const reactDoctorRules = [
       requires: [
         ...new Set<Capability>(["react", ...(noImgLazyWithHighFetchpriority.requires ?? [])]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/no-img-without-dimensions",
+    id: "no-img-without-dimensions",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noImgWithoutDimensions,
+      framework: "global",
+      category: "Performance",
+      tags: [...new Set(["design", ...(noImgWithoutDimensions.tags ?? [])])],
     },
   },
   {
@@ -3071,6 +4025,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-inert-pointer-affordance",
+    id: "no-inert-pointer-affordance",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noInertPointerAffordance,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noInertPointerAffordance.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-inert-sticky-position",
+    id: "no-inert-sticky-position",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noInertStickyPosition,
+      framework: "global",
+      category: "Bugs",
+      tags: [...new Set(["design", ...(noInertStickyPosition.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-initialize-state",
     id: "no-initialize-state",
     source: "react-doctor",
@@ -3091,6 +4069,7 @@ export const reactDoctorRules = [
       ...noInlineBounceEasing,
       framework: "global",
       category: "Performance",
+      tags: [...new Set(["design", ...(noInlineBounceEasing.tags ?? [])])],
     },
   },
   {
@@ -3102,6 +4081,7 @@ export const reactDoctorRules = [
       ...noInlineExhaustiveStyle,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noInlineExhaustiveStyle.tags ?? [])])],
     },
   },
   {
@@ -3147,6 +4127,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-invalid-progress-range",
+    id: "no-invalid-progress-range",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noInvalidProgressRange,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noInvalidProgressRange.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-invisible-focus-control",
+    id: "no-invisible-focus-control",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noInvisibleFocusControl,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noInvisibleFocusControl.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-is-mounted",
     id: "no-is-mounted",
     source: "react-doctor",
@@ -3156,6 +4160,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noIsMounted.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-italic-serif-display-heading",
+    id: "no-italic-serif-display-heading",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noItalicSerifDisplayHeading,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noItalicSerifDisplayHeading.tags ?? [])])],
     },
   },
   {
@@ -3189,6 +4205,7 @@ export const reactDoctorRules = [
       ...noJustifiedText,
       framework: "global",
       category: "Accessibility",
+      tags: [...new Set(["design", ...(noJustifiedText.tags ?? [])])],
     },
   },
   {
@@ -3216,6 +4233,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-layout-shifting-interaction-state",
+    id: "no-layout-shifting-interaction-state",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noLayoutShiftingInteractionState,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noLayoutShiftingInteractionState.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-layout-transition-inline",
     id: "no-layout-transition-inline",
     source: "react-doctor",
@@ -3224,6 +4253,7 @@ export const reactDoctorRules = [
       ...noLayoutTransitionInline,
       framework: "global",
       category: "Performance",
+      tags: [...new Set(["design", ...(noLayoutTransitionInline.tags ?? [])])],
     },
   },
   {
@@ -3283,6 +4313,31 @@ export const reactDoctorRules = [
       ...noLongTransitionDuration,
       framework: "global",
       category: "Performance",
+      tags: [...new Set(["design", ...(noLongTransitionDuration.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-low-contrast-inline-style",
+    id: "no-low-contrast-inline-style",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noLowContrastInlineStyle,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noLowContrastInlineStyle.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-manufactured-contrast-copy",
+    id: "no-manufactured-contrast-copy",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noManufacturedContrastCopy,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noManufacturedContrastCopy.tags ?? [])])],
     },
   },
   {
@@ -3323,6 +4378,29 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-mixed-icon-libraries",
+    id: "no-mixed-icon-libraries",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noMixedIconLibraries,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noMixedIconLibraries.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-mixed-srcset-descriptors",
+    id: "no-mixed-srcset-descriptors",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noMixedSrcsetDescriptors,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
     key: "react-doctor/no-moment",
     id: "no-moment",
     source: "react-doctor",
@@ -3331,6 +4409,18 @@ export const reactDoctorRules = [
       ...noMoment,
       framework: "global",
       category: "Performance",
+    },
+  },
+  {
+    key: "react-doctor/no-monotonous-page-spacing",
+    id: "no-monotonous-page-spacing",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noMonotonousPageSpacing,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noMonotonousPageSpacing.tags ?? [])])],
     },
   },
   {
@@ -3343,6 +4433,47 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Maintainability",
       requires: [...new Set<Capability>(["react", ...(noMultiComp.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-multiple-labels-for-control",
+    id: "no-multiple-labels-for-control",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noMultipleLabelsForControl,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noMultipleLabelsForControl.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-multiple-main-landmarks",
+    id: "no-multiple-main-landmarks",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noMultipleMainLandmarks,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noMultipleMainLandmarks.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-multiple-unlabeled-navigation-landmarks",
+    id: "no-multiple-unlabeled-navigation-landmarks",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noMultipleUnlabeledNavigationLandmarks,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>([
+          "react",
+          ...(noMultipleUnlabeledNavigationLandmarks.requires ?? []),
+        ]),
+      ],
     },
   },
   {
@@ -3415,6 +4546,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noNamespace.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-nested-card-surface",
+    id: "no-nested-card-surface",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noNestedCardSurface,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noNestedCardSurface.tags ?? [])])],
     },
   },
   {
@@ -3505,6 +4648,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-nonresizable-textarea",
+    id: "no-nonresizable-textarea",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noNonresizableTextarea,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noNonresizableTextarea.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-nullish-coalescing-arithmetic-precedence",
     id: "no-nullish-coalescing-arithmetic-precedence",
     source: "react-doctor",
@@ -3513,6 +4668,18 @@ export const reactDoctorRules = [
       ...noNullishCoalescingArithmeticPrecedence,
       framework: "global",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/no-numbered-section-markers",
+    id: "no-numbered-section-markers",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noNumberedSectionMarkers,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noNumberedSectionMarkers.tags ?? [])])],
     },
   },
   {
@@ -3546,6 +4713,43 @@ export const reactDoctorRules = [
       ...noOutlineNone,
       framework: "global",
       category: "Accessibility",
+      tags: [...new Set(["design", ...(noOutlineNone.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-overloaded-hover-state",
+    id: "no-overloaded-hover-state",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noOverloadedHoverState,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noOverloadedHoverState.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-oversized-long-heading",
+    id: "no-oversized-long-heading",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noOversizedLongHeading,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noOversizedLongHeading.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-overwide-text-measure",
+    id: "no-overwide-text-measure",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noOverwideTextMeasure,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noOverwideTextMeasure.tags ?? [])])],
     },
   },
   {
@@ -3585,6 +4789,54 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-pill-navigation-count",
+    id: "no-pill-navigation-count",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noPillNavigationCount,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noPillNavigationCount.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-placeholder-only-field",
+    id: "no-placeholder-only-field",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noPlaceholderOnlyField,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noPlaceholderOnlyField.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-placeholder-persona-copy",
+    id: "no-placeholder-persona-copy",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noPlaceholderPersonaCopy,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noPlaceholderPersonaCopy.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-pointer-disabled-enabled-control",
+    id: "no-pointer-disabled-enabled-control",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noPointerDisabledEnabledControl,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noPointerDisabledEnabledControl.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-polymorphic-children",
     id: "no-polymorphic-children",
     source: "react-doctor",
@@ -3604,6 +4856,18 @@ export const reactDoctorRules = [
       ...noPredicateFunctionReferenceInBooleanPosition,
       framework: "global",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/no-presentation-role-conflict",
+    id: "no-presentation-role-conflict",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noPresentationRoleConflict,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noPresentationRoleConflict.requires ?? [])])],
     },
   },
   {
@@ -3678,6 +4942,19 @@ export const reactDoctorRules = [
       ...noPureBlackBackground,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noPureBlackBackground.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-pure-black-shadow",
+    id: "no-pure-black-shadow",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noPureBlackShadow,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noPureBlackShadow.tags ?? [])])],
     },
   },
   {
@@ -3726,6 +5003,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-redundant-display-class",
+    id: "no-redundant-display-class",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRedundantDisplayClass,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRedundantDisplayClass.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-redundant-roles",
     id: "no-redundant-roles",
     source: "react-doctor",
@@ -3749,6 +5038,18 @@ export const reactDoctorRules = [
       requires: [
         ...new Set<Capability>(["react", ...(noRedundantShouldComponentUpdate.requires ?? [])]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/no-redundant-title-tooltip",
+    id: "no-redundant-title-tooltip",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRedundantTitleTooltip,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRedundantTitleTooltip.tags ?? [])])],
     },
   },
   {
@@ -3809,6 +5110,90 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-repeated-emoji-tiles",
+    id: "no-repeated-emoji-tiles",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedEmojiTiles,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedEmojiTiles.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeated-glass-surfaces",
+    id: "no-repeated-glass-surfaces",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedGlassSurfaces,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedGlassSurfaces.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeated-hover-scale",
+    id: "no-repeated-hover-scale",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedHoverScale,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedHoverScale.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeated-kicker-labels",
+    id: "no-repeated-kicker-labels",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedKickerLabels,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedKickerLabels.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeated-placeholder-navigation",
+    id: "no-repeated-placeholder-navigation",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedPlaceholderNavigation,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedPlaceholderNavigation.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeated-section-shells",
+    id: "no-repeated-section-shells",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatedSectionShells,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatedSectionShells.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-repeating-gradient-decoration",
+    id: "no-repeating-gradient-decoration",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noRepeatingGradientDecoration,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noRepeatingGradientDecoration.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-reset-all-state-on-prop-change",
     id: "no-reset-all-state-on-prop-change",
     source: "react-doctor",
@@ -3855,6 +5240,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noSelfUpdatingEffect.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-server-side-image-map",
+    id: "no-server-side-image-map",
+    source: "react-doctor",
+    originallyExternal: true,
+    rule: {
+      ...noServerSideImageMap,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noServerSideImageMap.requires ?? [])])],
     },
   },
   {
@@ -3918,6 +5315,43 @@ export const reactDoctorRules = [
       ...noSideTabBorder,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noSideTabBorder.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-skipped-heading-level",
+    id: "no-skipped-heading-level",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSkippedHeadingLevel,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noSkippedHeadingLevel.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-small-form-control-text",
+    id: "no-small-form-control-text",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSmallFormControlText,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noSmallFormControlText.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-smooth-scroll-without-reduced-motion",
+    id: "no-smooth-scroll-without-reduced-motion",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSmoothScrollWithoutReducedMotion,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noSmoothScrollWithoutReducedMotion.tags ?? [])])],
     },
   },
   {
@@ -3949,6 +5383,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-srcset-without-sizes",
+    id: "no-srcset-without-sizes",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSrcsetWithoutSizes,
+      framework: "global",
+      category: "Performance",
+      requires: [...new Set<Capability>(["react", ...(noSrcsetWithoutSizes.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-stale-timer-ref",
     id: "no-stale-timer-ref",
     source: "react-doctor",
@@ -3972,6 +5418,18 @@ export const reactDoctorRules = [
       requires: [
         ...new Set<Capability>(["react", ...(noStaticElementInteractions.requires ?? [])]),
       ],
+    },
+  },
+  {
+    key: "react-doctor/no-static-motion-config-never",
+    id: "no-static-motion-config-never",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noStaticMotionConfigNever,
+      framework: "global",
+      category: "Bugs",
+      requires: [...new Set<Capability>(["react", ...(noStaticMotionConfigNever.requires ?? [])])],
     },
   },
   {
@@ -4001,6 +5459,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-svg-currentcolor-with-fill-class",
+    id: "no-svg-currentcolor-with-fill-class",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSvgCurrentcolorWithFillClass,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noSvgCurrentcolorWithFillClass.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-symmetric-text-button-padding",
+    id: "no-symmetric-text-button-padding",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noSymmetricTextButtonPadding,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noSymmetricTextButtonPadding.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-sync-xhr",
     id: "no-sync-xhr",
     source: "react-doctor",
@@ -4009,6 +5491,18 @@ export const reactDoctorRules = [
       ...noSyncXhr,
       framework: "global",
       category: "Performance",
+    },
+  },
+  {
+    key: "react-doctor/no-tailwind-layout-transition",
+    id: "no-tailwind-layout-transition",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTailwindLayoutTransition,
+      framework: "global",
+      category: "Performance",
+      tags: [...new Set(["design", ...(noTailwindLayoutTransition.tags ?? [])])],
     },
   },
   {
@@ -4024,6 +5518,42 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-tight-all-caps-heading",
+    id: "no-tight-all-caps-heading",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTightAllCapsHeading,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noTightAllCapsHeading.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-tight-body-leading",
+    id: "no-tight-body-leading",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTightBodyLeading,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noTightBodyLeading.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-tight-display-tracking",
+    id: "no-tight-display-tracking",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTightDisplayTracking,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noTightDisplayTracking.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-tiny-text",
     id: "no-tiny-text",
     source: "react-doctor",
@@ -4032,6 +5562,19 @@ export const reactDoctorRules = [
       ...noTinyText,
       framework: "global",
       category: "Accessibility",
+      tags: [...new Set(["design", ...(noTinyText.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-tiny-uppercase-tracked-label",
+    id: "no-tiny-uppercase-tracked-label",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTinyUppercaseTrackedLabel,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noTinyUppercaseTrackedLabel.tags ?? [])])],
     },
   },
   {
@@ -4044,6 +5587,32 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Performance",
       requires: [...new Set<Capability>(["react", ...(noTransitionAll.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-transitioned-focus-ring",
+    id: "no-transitioned-focus-ring",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noTransitionedFocusRing,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noTransitionedFocusRing.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-unbounded-animation-frame-loop",
+    id: "no-unbounded-animation-frame-loop",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUnboundedAnimationFrameLoop,
+      framework: "global",
+      category: "Performance",
+      requires: [
+        ...new Set<Capability>(["react", ...(noUnboundedAnimationFrameLoop.requires ?? [])]),
+      ],
     },
   },
   {
@@ -4069,6 +5638,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-undersized-icon-button",
+    id: "no-undersized-icon-button",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUndersizedIconButton,
+      framework: "global",
+      category: "Accessibility",
+      tags: [...new Set(["design", ...(noUndersizedIconButton.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-unescaped-dynamic-string-in-regexp",
     id: "no-unescaped-dynamic-string-in-regexp",
     source: "react-doctor",
@@ -4089,6 +5670,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(noUnescapedEntities.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-ungated-tailwind-animation",
+    id: "no-ungated-tailwind-animation",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUngatedTailwindAnimation,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noUngatedTailwindAnimation.requires ?? [])])],
     },
   },
   {
@@ -4142,6 +5735,30 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/no-uniform-feature-card-grid",
+    id: "no-uniform-feature-card-grid",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUniformFeatureCardGrid,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noUniformFeatureCardGrid.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-uninformative-aria-label",
+    id: "no-uninformative-aria-label",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUninformativeAriaLabel,
+      framework: "global",
+      category: "Accessibility",
+      requires: [...new Set<Capability>(["react", ...(noUninformativeAriaLabel.requires ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/no-unknown-property",
     id: "no-unknown-property",
     source: "react-doctor",
@@ -4186,6 +5803,44 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Performance",
       requires: [...new Set<Capability>(["react", ...(noUnstableNestedComponents.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-unthrottled-scroll-mutation",
+    id: "no-unthrottled-scroll-mutation",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUnthrottledScrollMutation,
+      framework: "global",
+      category: "Performance",
+      requires: [
+        ...new Set<Capability>(["react", ...(noUnthrottledScrollMutation.requires ?? [])]),
+      ],
+    },
+  },
+  {
+    key: "react-doctor/no-uppercase-mono-label",
+    id: "no-uppercase-mono-label",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUppercaseMonoLabel,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noUppercaseMonoLabel.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/no-uppercase-tracked-navigation-label",
+    id: "no-uppercase-tracked-navigation-label",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...noUppercaseTrackedNavigationLabel,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(noUppercaseTrackedNavigationLabel.tags ?? [])])],
     },
   },
   {
@@ -4234,6 +5889,7 @@ export const reactDoctorRules = [
       ...noWideLetterSpacing,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noWideLetterSpacing.tags ?? [])])],
     },
   },
   {
@@ -4257,6 +5913,7 @@ export const reactDoctorRules = [
       ...noZIndex9999,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(noZIndex9999.tags ?? [])])],
     },
   },
   {
@@ -4317,6 +5974,17 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Security",
       tags: [...new Set(["security-scan", ...(pluginUpdateTrustRisk.tags ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/pointer-capture-needs-cancel-handler",
+    id: "pointer-capture-needs-cancel-handler",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...pointerCaptureNeedsCancelHandler,
+      framework: "global",
+      category: "Bugs",
     },
   },
   {
@@ -4384,6 +6052,18 @@ export const reactDoctorRules = [
       ...preactPreferOninput,
       framework: "preact",
       category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/prefer-dvh-over-vh",
+    id: "prefer-dvh-over-vh",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...preferDvhOverVh,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(preferDvhOverVh.tags ?? [])])],
     },
   },
   {
@@ -4467,6 +6147,20 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/prefer-motion-transform-property",
+    id: "prefer-motion-transform-property",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...preferMotionTransformProperty,
+      framework: "global",
+      category: "Performance",
+      requires: [
+        ...new Set<Capability>(["react", ...(preferMotionTransformProperty.requires ?? [])]),
+      ],
+    },
+  },
+  {
     key: "react-doctor/prefer-stable-empty-fallback",
     id: "prefer-stable-empty-fallback",
     source: "react-doctor",
@@ -4479,6 +6173,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/prefer-tabular-numeric-data",
+    id: "prefer-tabular-numeric-data",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...preferTabularNumericData,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(preferTabularNumericData.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/prefer-tag-over-role",
     id: "prefer-tag-over-role",
     source: "react-doctor",
@@ -4488,6 +6194,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Accessibility",
       requires: [...new Set<Capability>(["react", ...(preferTagOverRole.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/prefer-truncate-shorthand",
+    id: "prefer-truncate-shorthand",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...preferTruncateShorthand,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(preferTruncateShorthand.tags ?? [])])],
     },
   },
   {
@@ -4958,6 +6676,18 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/require-autoplay-video-poster",
+    id: "require-autoplay-video-poster",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...requireAutoplayVideoPoster,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(requireAutoplayVideoPoster.tags ?? [])])],
+    },
+  },
+  {
     key: "react-doctor/require-render-return",
     id: "require-render-return",
     source: "react-doctor",
@@ -4967,6 +6697,18 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(requireRenderReturn.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/require-scale-reveal-transform-origin",
+    id: "require-scale-reveal-transform-origin",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...requireScaleRevealTransformOrigin,
+      framework: "global",
+      category: "Maintainability",
+      tags: [...new Set(["design", ...(requireScaleRevealTransformOrigin.tags ?? [])])],
     },
   },
   {
@@ -5506,6 +7248,23 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/role-button-requires-complete-keyboard-activation",
+    id: "role-button-requires-complete-keyboard-activation",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...roleButtonRequiresCompleteKeyboardActivation,
+      framework: "global",
+      category: "Accessibility",
+      requires: [
+        ...new Set<Capability>([
+          "react",
+          ...(roleButtonRequiresCompleteKeyboardActivation.requires ?? []),
+        ]),
+      ],
+    },
+  },
+  {
     key: "react-doctor/role-has-required-aria-props",
     id: "role-has-required-aria-props",
     source: "react-doctor",
@@ -5674,6 +7433,17 @@ export const reactDoctorRules = [
     },
   },
   {
+    key: "react-doctor/shadcn-tabs-trigger-requires-list",
+    id: "shadcn-tabs-trigger-requires-list",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...shadcnTabsTriggerRequiresList,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
     key: "react-doctor/state-in-constructor",
     id: "state-in-constructor",
     source: "react-doctor",
@@ -5706,6 +7476,7 @@ export const reactDoctorRules = [
       ...styledComponentsDuplicateCssPropertyInBlock,
       framework: "global",
       category: "Maintainability",
+      tags: [...new Set(["design", ...(styledComponentsDuplicateCssPropertyInBlock.tags ?? [])])],
     },
   },
   {
@@ -6026,6 +7797,28 @@ export const reactDoctorRules = [
       framework: "global",
       category: "Bugs",
       requires: [...new Set<Capability>(["react", ...(voidDomElementsNoChildren.requires ?? [])])],
+    },
+  },
+  {
+    key: "react-doctor/waapi-animation-in-render",
+    id: "waapi-animation-in-render",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...waapiAnimationInRender,
+      framework: "global",
+      category: "Bugs",
+    },
+  },
+  {
+    key: "react-doctor/web-animation-offsets-valid",
+    id: "web-animation-offsets-valid",
+    source: "react-doctor",
+    originallyExternal: false,
+    rule: {
+      ...webAnimationOffsetsValid,
+      framework: "global",
+      category: "Bugs",
     },
   },
   {

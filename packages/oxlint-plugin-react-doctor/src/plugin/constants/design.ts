@@ -21,7 +21,133 @@ export const COLOR_CHROMA_THRESHOLD = 30;
 
 export const TINY_TEXT_THRESHOLD_PX = 12;
 
+export const TINY_UPPERCASE_TRACKED_LABEL_MAX_PX = 11;
+
+export const MINIMUM_TARGET_SIZE_PX = 24;
+
+// WCAG 2.1 contrast minimums. Normal text needs 4.5:1; "large" text
+// (>=24px regular, or >=18.66px / 14pt bold) and icons need 3:1.
+export const WCAG_CONTRAST_NORMAL_MIN = 4.5;
+export const WCAG_CONTRAST_LARGE_MIN = 3;
+export const LARGE_TEXT_MIN_PX = 24;
+export const LARGE_BOLD_TEXT_MIN_PX = 18.66;
+export const BOLD_FONT_WEIGHT_MIN = 700;
+
+// Browser default root font size — the px-per-rem divisor for converting
+// arbitrary `px` font sizes and `rem` lengths to and from pixels.
+export const ROOT_FONT_SIZE_PX = 16;
+
 export const WIDE_TRACKING_THRESHOLD_EM = 0.05;
+
+export const CRUSHED_TRACKING_THRESHOLD_EM = -0.08;
+
+export const TIGHT_LINE_HEIGHT_RATIO = 1.3;
+
+export const DISPLAY_TEXT_MIN_FONT_SIZE_PX = 24;
+
+export const LONG_BODY_TEXT_MIN_CHARACTERS = 48;
+
+export const READABLE_LINE_LENGTH_MAX_CH = 80;
+
+export const LONG_DISPLAY_HEADING_MIN_CHARACTERS = 40;
+
+export const OVERSIZED_DISPLAY_HEADING_MIN_PX = 64;
+
+export const SHORT_DECORATIVE_LABEL_MAX_CHARACTERS = 32;
+
+export const REPEATED_DECORATIVE_LABEL_MIN_COUNT = 3;
+
+export const MIN_BOUNDED_CONTAINER_PADDING_PX = 8;
+
+export const WIDE_SHADOW_BLUR_MIN_PX = 16;
+
+export const COMMON_UI_FONT_FAMILIES = new Set([
+  "arial",
+  "geist",
+  "helvetica",
+  "inter",
+  "lato",
+  "montserrat",
+  "open sans",
+  "plus jakarta sans",
+  "roboto",
+  "space grotesk",
+]);
+
+export const MIN_PAGE_TYPE_SCALE_RATIO = 2;
+
+export const PAGE_TYPE_SCALE_MIN_STEPS = 3;
+
+export const PAGE_SPACING_MIN_SAMPLES = 12;
+
+export const PAGE_SPACING_DOMINANT_RATIO = 0.67;
+
+export const PAGE_SPACING_MAX_DISTINCT_VALUES = 4;
+
+export const TAILWIND_SPACING_UNIT_PX = 4;
+
+export const MANUFACTURED_COPY_PATTERN_MIN_COUNT = 3;
+
+export const DECORATIVE_GRID_MIN_GRADIENT_LAYERS = 2;
+
+export const DECORATIVE_BLUR_ORB_MIN_BLUR_PX = 24;
+
+export const REPEATED_GLASS_SURFACE_MIN_COUNT = 3;
+
+export const EXCESSIVE_PILL_TREATMENT_MIN_COUNT = 5;
+
+export const UNIFORM_FEATURE_CARD_MIN_COUNT = 3;
+
+export const CENTERED_COPY_MIN_COUNT = 3;
+
+export const CENTERED_COPY_MIN_CHARACTERS = 48;
+
+export const REPEATED_EMOJI_TILE_MIN_COUNT = 3;
+
+export const GENERIC_ICON_GRADIENT_MAX_SIZE_SPACING_UNITS = 16;
+
+export const EXCESSIVE_MOTION_STAGGER_SECONDS = 0.08;
+
+export const CENTERED_HERO_MAX_STATIC_ELEMENTS = 12;
+
+export const EXCESSIVE_CARD_SURFACE_MIN_COUNT = 6;
+
+export const REPEATED_SECTION_SHELL_MIN_COUNT = 3;
+
+export const OVERLOADED_HOVER_PROPERTY_MIN_COUNT = 3;
+
+export const REPEATED_HOVER_SCALE_MIN_COUNT = 3;
+
+export const LONG_ALL_CAPS_HEADING_MIN_CHARACTERS = 24;
+
+export const EXCESSIVE_FONT_FAMILY_MIN_COUNT = 4;
+
+export const TAILWIND_TEXT_SIZE_PX = new Map([
+  ["text-xs", 12],
+  ["text-sm", 14],
+  ["text-base", 16],
+  ["text-lg", 18],
+  ["text-xl", 20],
+  ["text-2xl", 24],
+  ["text-3xl", 30],
+  ["text-4xl", 36],
+  ["text-5xl", 48],
+  ["text-6xl", 60],
+  ["text-7xl", 72],
+  ["text-8xl", 96],
+  ["text-9xl", 128],
+]);
+
+export const GENERIC_MARKETING_PHRASES = new Set([
+  "cutting-edge",
+  "future-proof",
+  "next-generation",
+  "seamless experience",
+  "supercharge your workflow",
+  "transform your business",
+  "unlock your potential",
+  "world-class",
+]);
 
 export const LONG_TRANSITION_DURATION_THRESHOLD_MS = 1000;
 
@@ -97,6 +223,30 @@ export const SIZE_HEIGHT_AXIS_PATTERN = /(?:^|\s)(-?)h-(\d+(?:\.\d+)?|\[[^\]]+\]
 
 export const FLEX_OR_GRID_DISPLAY_TOKENS = new Set(["flex", "inline-flex", "grid", "inline-grid"]);
 
+export const TAILWIND_DISPLAY_TOKENS = new Set([
+  "block",
+  "inline-block",
+  "inline",
+  "flex",
+  "inline-flex",
+  "table",
+  "inline-table",
+  "table-caption",
+  "table-cell",
+  "table-column",
+  "table-column-group",
+  "table-footer-group",
+  "table-header-group",
+  "table-row-group",
+  "table-row",
+  "flow-root",
+  "grid",
+  "inline-grid",
+  "contents",
+  "list-item",
+  "hidden",
+]);
+
 export const SPACE_AXIS_PATTERN = /(?:^|\s)(?:-)?space-(x|y)-(\d+(?:\.\d+)?|\[[^\]]+\])(?=$|[\s:])/;
 
-export const TRAILING_THREE_PERIOD_ELLIPSIS_PATTERN = /[A-Za-z]\.\.\./;
+export const TRAILING_THREE_PERIOD_ELLIPSIS_PATTERN = /[\p{L}\p{N}]\.\.\./u;

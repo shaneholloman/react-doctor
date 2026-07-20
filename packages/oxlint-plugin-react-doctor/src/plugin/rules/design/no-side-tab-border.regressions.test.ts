@@ -58,4 +58,34 @@ describe("design/no-side-tab-border — regressions", () => {
     const result = run(`const C = () => <div className="border-l-4 border-[#dc2626]" />;`);
     expect(result.diagnostics).toHaveLength(1);
   });
+
+  it("flags a colored top edge on a rounded Tailwind surface", () => {
+    const result = run(
+      `const C = () => <div className="rounded-lg border-t-2 border-t-red-500" />;`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag a top edge on a square surface", () => {
+    const result = run(`const C = () => <div className="border-t-4 border-t-red-500" />;`);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags a colored bottom edge in a rounded inline style", () => {
+    const result = run(
+      `const C = () => <div style={{ borderRadius: 8, borderBottom: "3px solid red" }} />;`,
+    );
+    expect(result.diagnostics).toHaveLength(1);
+  });
+
+  it("does not flag Tailwind or inline loading spinners", () => {
+    const tailwindResult = run(
+      `const Spinner = () => <div className="animate-spin rounded-full border-b-2 border-blue-600" />;`,
+    );
+    const inlineResult = run(
+      `const Spinner = () => <div className="spinner" style={{ borderRadius: "50%", borderTop: "4px solid blue", animation: "spin 1s linear infinite" }} />;`,
+    );
+    expect(tailwindResult.diagnostics).toEqual([]);
+    expect(inlineResult.diagnostics).toEqual([]);
+  });
 });

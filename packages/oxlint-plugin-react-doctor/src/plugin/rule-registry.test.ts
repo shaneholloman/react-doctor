@@ -7,6 +7,26 @@ import { walkAst } from "./utils/walk-ast.js";
 const REANIMATED_LAYOUT_RULE_ID = "rn-animate-layout-property";
 const CASCADING_SET_STATE_RULE_ID = "no-cascading-set-state";
 const HOOK_IMPORT_RENAME_RULE_ID = "hook-import-rename-loses-use-prefix";
+const IN_HOUSE_A11Y_RULE_IDS = [
+  "data-table-requires-accessible-name",
+  "details-requires-summary",
+  "fieldset-requires-legend",
+  "form-control-requires-name",
+  "no-assertive-status",
+  "no-aria-invalid-without-description",
+  "no-autoplay-without-muted",
+  "no-blocked-paste",
+  "no-broken-image-source",
+  "no-focusable-content-in-aria-hidden",
+  "no-multiple-unlabeled-navigation-landmarks",
+  "no-multiple-main-landmarks",
+  "no-nonresizable-textarea",
+  "no-placeholder-only-field",
+  "no-skipped-heading-level",
+  "no-static-motion-config-never",
+  "no-ungated-tailwind-animation",
+  "no-uninformative-aria-label",
+];
 
 // The full security-scan bucket: project-level scan rules executed by
 // @react-doctor/core's check-security-scan environment check instead of
@@ -74,6 +94,13 @@ describe("rule registry", () => {
     );
 
     expect(registryEntry?.originallyExternal).toBe(false);
+  });
+
+  it("keeps in-house accessibility rules in custom-only scans", () => {
+    for (const ruleId of IN_HOUSE_A11Y_RULE_IDS) {
+      const registryEntry = reactDoctorRules.find((entry) => entry.id === ruleId);
+      expect(registryEntry?.originallyExternal, ruleId).toBe(false);
+    }
   });
 
   it("registers exactly the 42 known security-scan rules", () => {

@@ -485,6 +485,10 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
     code: "export default function Page() {\n  return <main>Home</main>;\n}",
     filePath: "app/page.tsx",
   },
+  "nextjs-metadata-url-consistency": {
+    code: 'export const metadata = { alternates: { canonical: "https://example.com/docs" }, openGraph: { url: "https://example.com/help" } };',
+    filePath: "app/docs/page.tsx",
+  },
   "nextjs-no-a-element": {
     code: 'export default function C() { return <a href="/about">About</a>; }',
     filePath: "app/page.tsx",
@@ -550,6 +554,12 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-adjust-state-on-prop-change": {
     code: "function List({ items }) {\n        const [selection, setSelection] = useState(null);\n        useEffect(() => {\n          setSelection(null);\n        }, [items]);\n        return <div>{selection}</div>;\n      }",
   },
+  "no-all-caps-body-text": {
+    code: 'const Notice = () => <p className="uppercase">This paragraph contains enough readable copy that forcing every word into capitals makes it harder to scan.</p>;',
+  },
+  "no-arbitrary-px-font-size": {
+    code: 'const Label = () => <p className="text-[13px]">Status</p>;',
+  },
   "no-aria-hidden-on-focusable": {
     code: 'export const A = () => <button aria-hidden={true} type="button">x</button>;',
   },
@@ -580,6 +590,16 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-autofocus": {
     code: "export const SearchPage = () => (\n        <main>\n          <input autoFocus />\n        </main>\n      );",
   },
+  "no-autoplay-without-muted": {
+    code: 'const Hero = () => <video autoPlay loop src="/hero.mp4" />;',
+  },
+  "no-broken-image-source": {
+    code: 'const Preview = () => <img src="" alt="Preview" />;',
+  },
+  "no-blocked-paste": {
+    code: 'const Password = () => <input type="password" onPaste={(event) => event.preventDefault()} />;',
+    filePath: "src/password.tsx",
+  },
   "no-call-component-as-function": {
     code: "\n      const Row = ({ item }) => <li>{item}</li>;\n      const List = ({ items }) => (\n        <ul>{items.map((item) => Row({ item }))}</ul>\n      );\n      ",
   },
@@ -597,11 +617,23 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-controlled-input-value-without-state-update": {
     code: "const C = () => <input value={123} onChange={handleChange} />;",
   },
+  "no-common-root-font": {
+    code: 'const Page = () => <main style={{ fontFamily: "Inter, sans-serif" }}>Content</main>;',
+  },
+  "no-conflicting-spring-options": {
+    code: 'import { motion } from "motion/react";\nconst Card = () => <motion.div transition={{ type: "spring", stiffness: 200, duration: 0.4 }} />;',
+  },
+  "no-clipped-overlay": {
+    code: 'const Menu = () => <div className="overflow-hidden"><div role="menu" className="absolute">Items</div></div>;',
+  },
   "no-create-context-in-render": {
     code: '\n      import { createContext } from "react";\n\n      function App() {\n        const Ctx = createContext(null);\n        return null;\n      }\n    ',
   },
   "no-create-object-url-without-revoke": {
     code: "function make(blob) { return URL.createObjectURL(blob); }",
+  },
+  "no-create-object-url-in-render": {
+    code: "const Preview = ({ blob }) => { const src = URL.createObjectURL(blob); return <img src={src} />; };",
   },
   "no-create-ref-in-function-component": {
     code: "import { createRef, useMemo } from 'react';\nconst useDriveItemActions = (item) => {\n  const nameInputRef = useMemo(() => createRef(), []);\n  return { nameInputRef };\n};\nexport default useDriveItemActions;",
@@ -609,8 +641,23 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-create-store-in-render": {
     code: '\n      import { create } from "zustand";\n\n      function App() {\n        const useStore = create((set) => ({ count: 0 }));\n        return null;\n      }\n    ',
   },
+  "no-cramped-container-padding": {
+    code: 'const Panel = () => <div className="border rounded p-1">Status</div>;',
+  },
+  "no-crushed-letter-spacing": {
+    code: 'const Heading = () => <h1 style={{ letterSpacing: "-0.12em" }}>Readable heading</h1>;',
+  },
   "no-danger": {
     code: '<div dangerouslySetInnerHTML={{ __html: "x" }} />;',
+  },
+  "no-default-purple-page-gradient": {
+    code: 'const Page = () => <main className="min-h-screen bg-gradient-to-br from-violet-600 to-cyan-400">Content</main>;',
+  },
+  "no-default-warm-page-surface": {
+    code: 'const Page = () => <main className="min-h-screen bg-stone-50">Content</main>;',
+  },
+  "no-decorative-grid-background": {
+    code: 'const Hero = () => <section style={{ backgroundImage: "linear-gradient(to right, #aaa 1px, transparent 1px), linear-gradient(to bottom, #aaa 1px, transparent 1px)" }} />;',
   },
   "no-danger-with-children": {
     code: "const a = <div dangerouslySetInnerHTML={{ __html: html }}>text</div>;",
@@ -623,6 +670,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-deprecated-keyboard-event-keycode-which": {
     code: "const Row = () => <div onKeyDown={(e) => { if (e.keyCode === 75) focusSearch(); }} />;",
+  },
+  "no-deprecated-tailwind-class": {
+    code: 'const Gradient = () => <div className="bg-gradient-to-r from-black to-white" />;',
   },
   "no-derived-state": {
     code: 'function Profile({ firstName, lastName }) {\n        const [fullName, setFullName] = useState("");\n        useEffect(() => {\n          setFullName(`${firstName} ${lastName}`);\n        }, [firstName, lastName]);\n        return <p>{fullName}</p>;\n      }',
@@ -664,6 +714,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-eager-new-in-use-state-initializer": {
     code: 'import { useState } from "react";\nconst Client = () => useState(new AbortController());',
   },
+  "no-dynamic-tailwind-class-fragment": {
+    code: "const Tile = ({ color }) => <div className={`bg-${color}-500`} />;",
+  },
   "no-effect-chain": {
     code: "function Game({ card }) {\n        const [goldCardCount, setGoldCardCount] = useState(0);\n        const [round, setRound] = useState(1);\n        useEffect(() => { if (card.gold) setGoldCardCount(goldCardCount + 1); }, [card]);\n        useEffect(() => { if (goldCardCount > 3) setRound(round + 1); }, [goldCardCount]);\n        return null;\n      }",
   },
@@ -681,6 +734,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-enter-submit-without-ime-composition-guard": {
     code: "const Field = () => (\n         <input onKeyDown={(e) => { e.key === 'Enter' && onSave(); }} />\n       );",
+  },
+  "no-ease-in-motion": {
+    code: 'const Panel = () => <div style={{ transition: "opacity 200ms ease-in" }} />;',
   },
   "no-eval": {
     code: 'const fn = new Function("return 1");',
@@ -704,6 +760,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-find-dom-node": {
     code: 'import { findDOMNode } from "react-dom"; export const f = (node) => findDOMNode(node);',
   },
+  "no-flat-page-type-scale": {
+    code: 'const Page = () => <main><p className="text-sm">A</p><h2 className="text-base">B</h2><h1 className="text-lg">C</h1></main>;',
+  },
   "no-flush-sync": {
     code: 'import { flushSync } from "react-dom";\nfunction C() {\n  const onClick = () => {\n    flushSync(() => {\n      setCount((count) => count + 1);\n    });\n  };\n  return <button onClick={onClick}>go</button>;\n}',
   },
@@ -712,6 +771,12 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-full-lodash-import": {
     code: '\n      import _ from "lodash";\n      export const chunked = _.chunk([1, 2, 3], 2);\n    ',
+  },
+  "no-full-viewport-width": {
+    code: 'const Page = () => <main className="w-screen" />;',
+  },
+  "no-generic-marketing-copy": {
+    code: "const Page = () => <main><h1>Supercharge your workflow</h1></main>;",
   },
   "no-generic-handler-names": {
     code: "const El = () => <button onClick={handleClick}>Go</button>;",
@@ -725,6 +790,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-gradient-text": {
     code: 'const El = () => <span className="bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">Hi</span>;',
   },
+  "no-hairline-border-wide-shadow": {
+    code: 'const Card = () => <div className="border shadow-2xl" />;',
+  },
   "no-gray-on-colored-background": {
     code: 'const C = () => <div className="bg-blue-600 text-gray-400">Hi</div>;',
   },
@@ -732,11 +800,20 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
     code: '"use client";\nexport const Page = () => typeof window === "undefined" ? <Server /> : <Client />;',
     filePath: "app/page.tsx",
   },
+  "no-hero-eyebrow-chip": {
+    code: 'const Hero = () => <header><p className="uppercase tracking-widest">Built for teams</p><h1 className="text-7xl">Work together</h1></header>;',
+  },
   "no-img-lazy-with-high-fetchpriority": {
     code: 'const Hero = () => <img src="/a.png" loading="lazy" fetchPriority="high" />;',
   },
   "no-impure-call-at-module-scope": {
     code: "const RENDERED = Date.now();",
+  },
+  "no-icon-tile-heading-stack": {
+    code: 'const Feature = () => <article className="rounded-xl border bg-white p-6"><div className="size-12 rounded-lg bg-blue-100"><SparklesIcon /></div><h3>Automations</h3></article>;',
+  },
+  "no-image-hover-transform": {
+    code: 'const Card = () => <img src="/photo.jpg" alt="Landscape" className="hover:scale-105" />;',
   },
   "no-indeterminate-attribute": {
     code: 'const Checkbox = () => <input type="checkbox" indeterminate />;',
@@ -763,6 +840,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-is-mounted": {
     code: "class Hello extends React.Component { method() { if (!this.isMounted()) return; } render() { return <div />; } }",
+  },
+  "no-italic-serif-display-heading": {
+    code: 'const Hero = () => <h1 className="font-serif italic text-7xl">A considered approach</h1>;',
   },
   "no-json-parse-stringify-clone": {
     code: "const copy = JSON.parse(JSON.stringify(state));",
@@ -811,8 +891,14 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-long-transition-duration": {
     code: 'const S = () => <div style={{ transition: "width 2s ease" }} />;',
   },
+  "no-low-contrast-inline-style": {
+    code: 'const Balance = () => <span style={{ color: "#9ca3af", backgroundColor: "#ffffff", fontSize: 16 }}>Balance</span>;',
+  },
   "no-match-media-in-state-initializer": {
     code: 'import { useState } from "react";\nuseState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);',
+  },
+  "no-manufactured-contrast-copy": {
+    code: "const Page = () => <main><p>Not just another report. It is a plan.</p><p>No busywork. Just useful diagnostics.</p><p>Not a wall of warnings. You get prioritized fixes.</p></main>;",
   },
   "no-many-boolean-props": {
     code: "const Toggle = ({ isOpen, isLoading, hasIcon, canEdit }) => <div />;",
@@ -822,6 +908,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-moment": {
     code: 'import moment from "moment";',
+  },
+  "no-monotonous-page-spacing": {
+    code: 'const Page = () => <main><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /><div className="p-4" /></main>;',
   },
   "no-multi-comp": {
     code: "const Foo = () => <div />; const Bar = () => <div />; const Baz = () => <div />;",
@@ -854,6 +943,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-nondeterministic-id-value-in-render-body": {
     code: 'import { uniqueId } from "lodash";\nconst useBundleChartData = () => {\n  const chartId = useMemo(() => uniqueId(), []);\n  return { chartId };\n};',
   },
+  "no-nested-card-surface": {
+    code: 'const Cards = () => <div className="rounded-xl border p-6"><section className="rounded-lg border bg-white p-4">Inner</section></div>;',
+  },
   "no-noninteractive-element-interactions": {
     code: "<li onClick={() => {}}>x</li>",
   },
@@ -872,11 +964,23 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-object-keys-values-entries-on-maybe-undefined": {
     code: "const list = Object.keys(response?.data);",
   },
+  "no-numbered-section-markers": {
+    code: "const Page = () => <main><span>01</span><h2>Principles</h2><span>02</span><h2>Process</h2><span>03</span><h2>Outcome</h2></main>;",
+  },
   "no-outline-none": {
     code: 'const T = () => <button style={{ outline: "none" }}>Save</button>;',
   },
   "no-object-or-array-coerced-to-string-in-template-literal": {
     code: "function formatMetadata() { return `metadata: ${{ id: 1 }}`; }",
+  },
+  "no-overwide-text-measure": {
+    code: 'const Copy = () => <p style={{ maxWidth: "96ch" }}>Long-form copy</p>;',
+  },
+  "no-oversized-long-heading": {
+    code: 'const Hero = () => <h1 className="text-8xl">Build a better workflow for every team in your growing organization</h1>;',
+  },
+  "no-placeholder-only-field": {
+    code: 'const Field = () => <input placeholder="Email address" />;',
   },
   "no-pass-data-to-parent": {
     code: "const Child = (props) => {\n          const fetchedData = useSomeAPI();\n          useEffect(() => {\n            props.onLoaded(fetchedData);\n          }, [props, fetchedData]);\n          return null;\n        };",
@@ -942,12 +1046,21 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-react19-deprecated-apis": {
     code: 'import * as React from "react";\nconst Button = React.createFactory("button");\nvoid Button;',
   },
+  "no-redundant-display-class": {
+    code: 'const Card = () => <div className="block rounded-lg" />;',
+  },
+  "no-repeating-gradient-decoration": {
+    code: 'const Panel = () => <div style={{ backgroundImage: "repeating-linear-gradient(45deg, #fff 0 4px, #eee 4px 8px)" }} />;',
+  },
   "no-redundant-roles": {
     code: 'const Nav = () => <nav role="navigation" />;',
   },
   "no-redundant-should-component-update": {
     code: "\n\t\t\t        class Foo extends React.PureComponent {\n\t\t\t          shouldComponentUpdate() {\n\t\t\t            return true;\n\t\t\t          }\n\t\t\t        }\n\t\t\t      ",
     forceJsx: true,
+  },
+  "no-repeated-kicker-labels": {
+    code: 'const Page = () => <main><section><p className="uppercase tracking-widest">Approach</p><h2>How</h2></section><section><p className="uppercase tracking-widest">Benefits</p><h2>Why</h2></section><section><p className="uppercase tracking-widest">Results</p><h2>What</h2></section></main>;',
   },
   "no-render-in-render": {
     code: "const Foo = () => {\n        const renderRow = () => {\n          const [open] = useState(false);\n          return <div>{String(open)}</div>;\n        };\n        return <div>{renderRow()}</div>;\n      };",
@@ -996,11 +1109,18 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-spread-props-over-defaults-clobbers-with-undefined": {
     code: "interface Props{width?:number} const defaults={width:100};const Panel=(props:Props)=>{const merged={...defaults,...props};return merged.width*2};",
   },
+  "no-skipped-heading-level": {
+    code: "const Page = () => <main><h1>Title</h1><h3>Details</h3></main>;",
+  },
   "no-stale-timer-ref": {
     code: 'import { useRef } from "react";\nexport const useDelayedCallback = (callback) => {\n  const timerRef = useRef(null);\n  const schedule = () => {\n    if (timerRef.current) return;\n    timerRef.current = setTimeout(callback, 100);\n  };\n  const cancel = () => {\n    clearTimeout(timerRef.current);\n  };\n  return { schedule, cancel };\n};',
   },
   "no-static-element-interactions": {
     code: "export const A = ({ onClick }) => <div role={'wat'} onClick={onClick} />;",
+  },
+  "no-static-motion-config-never": {
+    code: 'import { MotionConfig } from "motion/react";\nconst App = () => <MotionConfig reducedMotion="never"><main /></MotionConfig>;',
+    filePath: "src/App.tsx",
   },
   "no-string-false-on-boolean-attribute": {
     code: 'const a = <input disabled="false" />;',
@@ -1009,9 +1129,18 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
     code: "\n              var Hello = createReactClass({\n                componentDidMount: function() {\n                  var component = this.refs.hello;\n                },\n                render: function() {\n                  return <div>Hello {this.props.name}</div>;\n                }\n              });\n            ",
     forceJsx: true,
   },
+  "no-svg-currentcolor-with-fill-class": {
+    code: 'const Icon = () => <svg fill="currentColor" className="fill-zinc-400" />;',
+  },
   "no-sync-xhr": {
     code: 'const xhr = new XMLHttpRequest();\nxhr.open("GET", url, false);\nxhr.send(null);',
     filePath: "/repo/src/lib/fetch-sync.ts",
+  },
+  "no-tailwind-layout-transition": {
+    code: 'const Drawer = () => <div className="transition-[height] duration-300" />;',
+  },
+  "no-tight-body-leading": {
+    code: "const Copy = () => <p style={{ lineHeight: 1.2 }}>This paragraph contains enough words to wrap across several lines in a typical content column.</p>;",
   },
   "no-this-in-sfc": {
     code: "const Foo = (props) => <span>{this.props.foo}</span>",
@@ -1022,12 +1151,20 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "no-transition-all": {
     code: 'const El = () => <div style={{ transition: "all 0.3s ease" }} />;',
   },
+  "no-unbounded-animation-frame-loop": {
+    code: "function draw(time) { render(time); requestAnimationFrame(draw); } requestAnimationFrame(draw);",
+    filePath: "src/animation.ts",
+  },
   "no-uncontrolled-input": {
     code: 'export default function Field({ text }) { return <input type="text" value={text} />; }',
     filePath: "app/field.tsx",
   },
   "no-unescaped-dynamic-string-in-regexp": {
     code: "const matcher = RegExp(highlight, 'gi');",
+  },
+  "no-unthrottled-scroll-mutation": {
+    code: 'const hero = document.querySelector(".hero"); document.addEventListener("scroll", () => { hero.style.transform = "translateY(20px)"; });',
+    filePath: "src/scroll.ts",
   },
   "no-unguarded-browser-global-in-render-or-hook-init": {
     code: '"use client";\nexport const Page = () => <main>{window.innerWidth}</main>;',
@@ -1038,6 +1175,9 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "no-unguarded-throwing-parse-call": {
     code: "function Swatch(props) { return chroma(props.color).hex(); }",
+  },
+  "no-uninformative-aria-label": {
+    code: 'const Search = () => <button aria-label="icon"><svg /></button>;',
   },
   "no-undeferred-third-party": {
     code: 'const W = () => <script src="https://cdn.example.com/w.js" />;',
@@ -1126,6 +1266,12 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "preact-prefer-oninput": {
     code: '\n      import { useState } from "preact/hooks";\n\n      const Search = () => {\n        const [query, setQuery] = useState("");\n        return <input type="text" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />;\n      };\n      ',
   },
+  "pointer-capture-needs-cancel-handler": {
+    code: "const Slider = () => <div onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)} onPointerMove={move} onPointerUp={finish} />;",
+  },
+  "prefer-dvh-over-vh": {
+    code: 'const Page = () => <main className="min-h-screen" />;',
+  },
   "prefer-dynamic-import": {
     code: '\n      import { Chart } from "chart.js";\n      Chart.register();\n    ',
   },
@@ -1149,11 +1295,17 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "prefer-module-scope-static-value": {
     code: '\n      function App() {\n        const FILTER_OPTIONS = ["all", "active", "done"];\n        return null;\n      }\n    ',
   },
+  "prefer-motion-transform-property": {
+    code: 'import { motion } from "motion/react";\nconst Card = () => <motion.div animate={{ x: 100 }} />;',
+  },
   "prefer-stable-empty-fallback": {
     code: '\n      import { memo } from "react";\n\n      const PostList = memo(({ posts }) => null);\n\n      function App(props) {\n        return <PostList posts={props.posts || []} />;\n      }\n    ',
   },
   "prefer-tag-over-role": {
     code: 'const Nav = () => <div role="navigation" />;',
+  },
+  "prefer-truncate-shorthand": {
+    code: 'const Name = () => <span className="overflow-hidden text-ellipsis whitespace-nowrap">Name</span>;',
   },
   "prefer-use-effect-event": {
     code: 'import { useEffect } from "react";\nconst Chat = ({ roomId, onMessage }) => {\n  useEffect(() => {\n    const socket = connect(roomId);\n    socket.on("message", (msg) => onMessage(msg));\n    return () => socket.close();\n  }, [roomId, onMessage]);\n  return null;\n};',
@@ -1581,6 +1733,12 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   "void-dom-elements-no-children": {
     code: "const a = <img>hi</img>;",
   },
+  "waapi-animation-in-render": {
+    code: 'const Card = () => { const node = document.createElement("div"); node.animate([{ opacity: 0 }, { opacity: 1 }], 200); return <div />; };',
+  },
+  "web-animation-offsets-valid": {
+    code: 'const node = document.createElement("div"); node.animate([{ opacity: 0, offset: 0.8 }, { opacity: 1, offset: 0.2 }], 200);',
+  },
   "webhook-signature-risk": {
     code: "export async function POST(request: Request) {\n  const event = await request.json();\n  await applyEvent(event);\n  return Response.json({ ok: true });\n}\n",
     filePath: "src/app/api/webhooks/github/route.ts",
@@ -1596,6 +1754,261 @@ export const livenessFixtures: Readonly<Record<string, LivenessFixture>> = {
   },
   "window-open-without-noopener": {
     code: "window.open(url);",
+  },
+  "html-no-nested-form": {
+    code: "const Form = () => <form><form /></form>;",
+  },
+  "motion-animate-presence-requires-key": {
+    code: 'import { AnimatePresence } from "motion/react";\nconst Stack = () => <AnimatePresence><Panel /><Panel /></AnimatePresence>;',
+  },
+  "motion-animate-presence-must-outlive-child": {
+    code: 'import { AnimatePresence, motion } from "motion/react";\nconst Panel = ({ open }) => open && <AnimatePresence><motion.div exit={{ opacity: 0 }} /></AnimatePresence>;',
+  },
+  "motion-animate-presence-wait-single-child": {
+    code: 'import { AnimatePresence } from "motion/react";\nconst Stack = () => <AnimatePresence mode="wait"><Panel key="a" /><Panel key="b" /></AnimatePresence>;',
+  },
+  "motion-create-in-render": {
+    code: 'import { motion } from "motion/react";\nconst Card = () => { const MotionCard = motion.create("article"); return <MotionCard />; };',
+  },
+  "motion-imperative-animation-in-render": {
+    code: 'import { animate } from "motion/react";\nconst Card = () => { animate(".card", { opacity: 1 }); return <article className="card" />; };',
+  },
+  "motion-drag-axis-constraint-mismatch": {
+    code: 'import { motion } from "motion/react";\nconst Slider = () => <motion.div drag="x" dragConstraints={{ top: -20, bottom: 20 }} />;',
+  },
+  "motion-keyframe-times-mismatch": {
+    code: 'import { motion } from "motion/react";\nconst Fade = () => <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ times: [0, 1] }} />;',
+  },
+  "motion-layout-on-inline-element": {
+    code: 'import { motion } from "motion/react";\nconst Label = () => <motion.span layout className="inline">Label</motion.span>;',
+  },
+  "motion-use-transform-range-length": {
+    code: 'import { useTransform } from "motion/react";\nconst opacity = useTransform(progress, [0, 0.5, 1], [0, 1]);',
+  },
+  "motion-unstable-layout-id-in-iteration": {
+    code: 'import { motion } from "motion/react";\nconst Cards = ({ cards }) => cards.map(() => <motion.article layoutId="card" />);',
+  },
+  "motion-value-constructor-in-render": {
+    code: 'import { motionValue } from "motion/react";\nconst Meter = ({ value }) => { const progress = motionValue(value); return <output>{progress.get()}</output>; };',
+  },
+  "motion-value-subscription-in-render": {
+    code: 'import { useMotionValue } from "motion/react";\nconst Meter = () => { const progress = useMotionValue(0); progress.on("change", console.log); return <output>{progress.get()}</output>; };',
+  },
+  "no-assertive-status": {
+    code: 'const Status = () => <div role="status" aria-live="assertive" />;',
+  },
+  "no-img-without-dimensions": {
+    code: 'const Avatar = () => <img src="/avatar.jpg" alt="Ada" />;',
+  },
+  "no-inert-sticky-position": {
+    code: 'const Header = () => <header className="sticky" />;',
+  },
+  "no-inert-pointer-affordance": {
+    code: 'const Card = () => <article className="cursor-pointer">Open</article>;',
+  },
+  "no-tiny-uppercase-tracked-label": {
+    code: 'const Label = () => <span className="text-[10px] uppercase tracking-wide">Recent activity</span>;',
+  },
+  "no-invalid-progress-range": {
+    code: "const Progress = () => <progress value={11} max={10} />;",
+  },
+  "no-pointer-disabled-enabled-control": {
+    code: 'const Action = () => <button className="pointer-events-none">Save</button>;',
+  },
+  "no-layout-shifting-interaction-state": {
+    code: 'const Button = () => <button className="hover:px-6">Save</button>;',
+  },
+  "no-small-form-control-text": {
+    code: 'const Form = () => <input className="text-sm" />;',
+  },
+  "no-smooth-scroll-without-reduced-motion": {
+    code: 'const Page = () => <main className="scroll-smooth" />;',
+  },
+  "no-undersized-icon-button": {
+    code: 'const Close = () => <button aria-label="Close" className="size-4 p-0"><CloseIcon /></button>;',
+  },
+  "no-aria-invalid-without-description": {
+    code: "const Field = () => <input aria-invalid />;",
+  },
+  "role-button-requires-complete-keyboard-activation": {
+    code: 'const Action = () => <div role="button" tabIndex={0} onClick={activate} onKeyDown={(event) => { if (event.key === "Enter") activate(); }}>Save</div>;',
+  },
+  "no-fixed-inside-transformed-ancestor": {
+    code: 'const Overlay = () => <div className="scale-95"><div className="fixed" /></div>;',
+  },
+  "no-focusable-content-in-aria-hidden": {
+    code: 'const Hidden = () => <div aria-hidden><button type="button">Save</button></div>;',
+  },
+  "no-generic-purple-blue-icon-gradient": {
+    code: 'const Icon = () => <div className="size-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex"><BotIcon /></div>;',
+  },
+  "no-hover-only-reveal": {
+    code: 'const Action = () => <button className="opacity-0 hover:opacity-100" />;',
+  },
+  "no-invisible-focus-control": {
+    code: 'const Select = () => <select className="absolute inset-0 opacity-0"><option>UTC</option></select>;',
+  },
+  "no-multiple-unlabeled-navigation-landmarks": {
+    code: "const Page = () => <><nav /><nav /></>;",
+  },
+  "no-srcset-without-sizes": {
+    code: 'const Hero = () => <img srcSet="small.jpg 640w, large.jpg 1280w" alt="" />;',
+  },
+  "no-ungated-tailwind-animation": {
+    code: 'const Spinner = () => <span className="animate-spin" />;',
+  },
+  "shadcn-tabs-trigger-requires-list": {
+    code: 'import { TabsTrigger } from "./tabs";\nconst Trigger = () => <TabsTrigger value="a" />;',
+  },
+  "data-table-requires-accessible-name": {
+    code: "const Results = () => <table><tr><th>Name</th></tr></table>;",
+  },
+  "details-requires-summary": {
+    code: "const Help = () => <details><p>Answer</p></details>;",
+  },
+  "fieldset-requires-legend": {
+    code: "const Group = () => <fieldset><input /><input /></fieldset>;",
+  },
+  "form-control-requires-name": {
+    code: "const Form = () => <form><input /></form>;",
+  },
+  "html-label-has-single-control": {
+    code: "const Range = () => <label><input /><input /></label>;",
+  },
+  "no-mixed-srcset-descriptors": {
+    code: 'const Image = () => <img srcSet="small.jpg 640w, large.jpg 2x" />;',
+  },
+  "no-multiple-main-landmarks": {
+    code: "const Page = () => <><main /><main /></>;",
+  },
+  "no-nonresizable-textarea": {
+    code: 'const Editor = () => <textarea className="resize-none" />;',
+  },
+  "no-decorative-blur-orb": {
+    code: 'const Hero = () => <div className="absolute size-96 rounded-full bg-purple-500 blur-3xl" />;',
+  },
+  "no-excessive-centered-copy": {
+    code: 'const Page = () => <main><p className="text-center">Build polished interfaces with a workflow that keeps every decision visible.</p><p className="text-center">Move from an initial idea to a working result without losing important context.</p><p className="text-center">Keep the whole team aligned with clear updates and shared project history.</p></main>;',
+  },
+  "no-excessive-motion-stagger": {
+    code: 'import { motion } from "motion/react"; const List = () => <motion.ul transition={{ staggerChildren: 0.2 }} />;',
+  },
+  "no-excessive-pill-treatment": {
+    code: 'const Page = () => <main><span className="rounded-full border px-3">Fast</span><span className="rounded-full border px-3">Safe</span><span className="rounded-full border px-3">Simple</span><span className="rounded-full border px-3">Clear</span><span className="rounded-full border px-3">New</span></main>;',
+  },
+  "no-full-viewport-centered-hero": {
+    code: 'const Hero = () => <section className="flex min-h-dvh items-center justify-center"><h1>Build faster</h1></section>;',
+  },
+  "no-repeated-emoji-tiles": {
+    code: 'const Page = () => <main><span className="size-12 rounded-xl bg-blue-100">🚀</span><span className="size-12 rounded-xl bg-green-100">🔒</span><span className="size-12 rounded-xl bg-amber-100">⚡</span></main>;',
+  },
+  "no-repeated-placeholder-navigation": {
+    code: 'const Nav = () => <nav><a href="#">Home</a><a href="#">Settings</a></nav>;',
+  },
+  "no-repeated-glass-surfaces": {
+    code: 'const Page = () => <main><div className="rounded-xl border bg-white/10 backdrop-blur-xl" /><div className="rounded-xl border bg-white/10 backdrop-blur-xl" /><div className="rounded-xl border bg-white/10 backdrop-blur-xl" /></main>;',
+  },
+  "no-uniform-feature-card-grid": {
+    code: 'const Features = () => <section className="grid grid-cols-3"><article className="rounded-xl border p-6"><h3>Fast</h3><p>Finish sooner.</p></article><article className="rounded-xl border p-6"><h3>Safe</h3><p>Protect changes.</p></article><article className="rounded-xl border p-6"><h3>Simple</h3><p>Stay focused.</p></article></section>;',
+  },
+  "no-excessive-card-surfaces": {
+    code: 'const Page = () => <main><section className="rounded-xl border p-6">A</section><section className="rounded-xl border p-6">B</section><section className="rounded-xl border p-6">C</section><section className="rounded-xl border p-6">D</section><section className="rounded-xl border p-6">E</section><section className="rounded-xl border p-6">F</section></main>;',
+  },
+  "no-empty-card-shell": {
+    code: 'const Empty = () => <section className="rounded-xl border bg-white p-6" />;',
+  },
+  "no-emoji-heading-decoration": {
+    code: "const Heading = () => <h2>🎧 Audio formats</h2>;",
+  },
+  "no-mixed-icon-libraries": {
+    code: 'import { Search } from "lucide-react"; import { HomeIcon } from "@heroicons/react/24/outline"; const Toolbar = () => <><Search /><HomeIcon /></>;',
+  },
+  "no-pill-navigation-count": {
+    code: 'const Sidebar = () => <nav><span className="rounded-full bg-gray-200 px-2">12</span></nav>;',
+  },
+  "no-redundant-title-tooltip": {
+    code: 'const Save = () => <button title="Save changes">Save changes</button>;',
+  },
+  "no-symmetric-text-button-padding": {
+    code: 'const Save = () => <button className="rounded-md bg-blue-600 p-3">Save changes</button>;',
+  },
+  "no-pure-black-shadow": {
+    code: 'const Card = () => <div style={{ boxShadow: "0 10px 30px #000" }} />;',
+  },
+  "no-repeated-section-shells": {
+    code: 'const Page = () => <main><section className="py-20"><div className="mx-auto max-w-6xl">A</div></section><section className="py-24"><div className="mx-auto max-w-6xl">B</div></section><section className="py-20"><div className="mx-auto max-w-6xl">C</div></section></main>;',
+  },
+  "no-tight-display-tracking": {
+    code: 'const Hero = () => <h1 className="tracking-tighter">Build faster</h1>;',
+  },
+  "no-uppercase-mono-label": {
+    code: 'const Label = () => <span className="font-mono uppercase tracking-widest">System online</span>;',
+  },
+  "no-uppercase-tracked-navigation-label": {
+    code: 'const Sidebar = () => <aside><span className="uppercase tracking-widest">Workspace</span></aside>;',
+  },
+  "require-scale-reveal-transform-origin": {
+    code: 'import { motion } from "motion/react"; const Menu = () => <motion.div role="menu" initial={{ scale: 0.96 }} />;',
+  },
+  "no-decorative-pulse": {
+    code: 'const Hero = () => <span className="animate-pulse">New feature</span>;',
+  },
+  "no-excessive-font-families": {
+    code: 'const Page = () => <main><h1 style={{ fontFamily: "Fraunces" }}>Title</h1><p style={{ fontFamily: "Inter" }}>Body</p><code style={{ fontFamily: "JetBrains Mono" }}>Code</code><aside style={{ fontFamily: "Caveat" }}>Note</aside></main>;',
+  },
+  "no-fake-browser-chrome": {
+    code: 'const Preview = () => <div className="overflow-hidden rounded-xl border"><div><div><span className="size-3 rounded-full bg-red-500" /><span className="size-3 rounded-full bg-yellow-500" /><span className="size-3 rounded-full bg-green-500" /></div></div></div>;',
+  },
+  "no-overloaded-hover-state": {
+    code: 'const Card = () => <article className="hover:-translate-y-1 hover:shadow-xl hover:bg-white" />;',
+  },
+  "no-placeholder-persona-copy": {
+    code: "const Page = () => <main><p>Jane Doe</p></main>;",
+  },
+  "no-repeated-hover-scale": {
+    code: 'const Grid = () => <main><article className="hover:scale-105" /><article className="hover:scale-105" /><article className="hover:scale-105" /></main>;',
+  },
+  "no-tight-all-caps-heading": {
+    code: 'const Hero = () => <h1 className="uppercase leading-none">Infrastructure for every engineering team</h1>;',
+  },
+  "no-transitioned-focus-ring": {
+    code: 'const Button = () => <button className="transition-shadow focus-visible:ring-2">Save</button>;',
+  },
+  "prefer-tabular-numeric-data": {
+    code: "const Row = ({ total }) => <tr><td>{total.toLocaleString()}</td></tr>;",
+  },
+  "require-autoplay-video-poster": {
+    code: 'const Hero = () => <video autoPlay muted src="/demo.mp4" />;',
+  },
+  "aria-braille-equivalent": {
+    code: 'const Save = () => <button aria-braillelabel="sv" />;',
+  },
+  "empty-table-header": {
+    code: "const Table = () => <table><tbody><tr><th /></tr></tbody></table>;",
+  },
+  "html-xml-lang-mismatch": {
+    code: 'const Page = () => <html lang="en" xml:lang="fr" />;',
+  },
+  "iframe-title-unique": {
+    code: 'const View = () => <><iframe title="Map" /><iframe title="Map" /></>;',
+  },
+  "no-aria-hidden-on-body": {
+    code: 'const Page = () => <body aria-hidden="true" />;',
+  },
+  "no-duplicate-static-id-reference": {
+    code: 'const Form = () => <><label htmlFor="email">Email</label><input id="email" /><input id="email" /></>;',
+  },
+  "no-focusable-content-in-role-text": {
+    code: 'const View = () => <span role="text"><button>Open</button></span>;',
+  },
+  "no-multiple-labels-for-control": {
+    code: 'const Form = () => <><label htmlFor="name">Name</label><label htmlFor="name">Required</label><input id="name" /></>;',
+  },
+  "no-server-side-image-map": {
+    code: 'const Map = () => <img alt="Campus" src="map.png" isMap />;',
+  },
+  "no-presentation-role-conflict": {
+    code: 'const Control = () => <div role="presentation" tabIndex={0} />;',
   },
   "zod-v4-no-deprecated-error-apis": {
     code: '\n      import { z } from "zod";\n      const error = z.ZodError.create([]);\n    ',
