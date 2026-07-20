@@ -14,6 +14,12 @@ const baseProject: ProjectInfo = {
   tailwindVersion: null,
   zodVersion: null,
   zodMajorVersion: null,
+  mobxVersion: null,
+  mobxMajorVersion: null,
+  hasMobxReact: false,
+  hasMobxReactLite: false,
+  hasMobxStateTree: false,
+  hasMobxReactObserver: false,
   framework: "vite",
   hasTypeScript: true,
   hasReactCompiler: false,
@@ -315,6 +321,70 @@ describe("buildCapabilities", () => {
     expect(capabilities.has("zod:4")).toBe(false);
   });
 
+  it("emits the supported MobX major ladder for versions 4 through 6", () => {
+    for (const mobxMajorVersion of [4, 5, 6]) {
+      const capabilities = buildCapabilities({
+        ...baseProject,
+        mobxVersion: `^${mobxMajorVersion}.0.0`,
+        mobxMajorVersion,
+      });
+      expect(capabilities.has("mobx")).toBe(true);
+      expect(capabilities.has("mobx:4")).toBe(true);
+      expect(capabilities.has(`mobx:${mobxMajorVersion}`)).toBe(true);
+    }
+
+    const futureVersion = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^7.0.0",
+      mobxMajorVersion: 7,
+    });
+    expect(futureVersion.has("mobx")).toBe(true);
+    expect(futureVersion.has("mobx:4")).toBe(false);
+  });
+
+  it("keeps unparseable MobX declarations present but version-inapplicable", () => {
+    const capabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "workspace:*",
+      mobxMajorVersion: null,
+    });
+    expect(capabilities.has("mobx")).toBe(true);
+    expect(capabilities.has("mobx:4")).toBe(false);
+  });
+
+  it("emits binding capabilities without inventing a MobX core version", () => {
+    const capabilities = buildCapabilities({
+      ...baseProject,
+      hasMobxReact: true,
+      hasMobxReactLite: true,
+      hasMobxStateTree: true,
+      hasMobxReactObserver: true,
+    });
+    expect(capabilities.has("mobx")).toBe(true);
+    expect(capabilities.has("mobx-react")).toBe(true);
+    expect(capabilities.has("mobx-react-lite")).toBe(true);
+    expect(capabilities.has("mobx-react-binding")).toBe(true);
+    expect(capabilities.has("mobx-state-tree")).toBe(true);
+    expect(capabilities.has("mobx-react-observer")).toBe(true);
+    expect(capabilities.has("mobx:4")).toBe(false);
+  });
+
+  it("emits the shared React binding capability for both official runtime bindings", () => {
+    for (const projectOverrides of [{ hasMobxReact: true }, { hasMobxReactLite: true }]) {
+      expect(
+        buildCapabilities({ ...baseProject, ...projectOverrides }).has("mobx-react-binding"),
+      ).toBe(true);
+    }
+
+    expect(buildCapabilities(baseProject).has("mobx-react-binding")).toBe(false);
+    expect(
+      buildCapabilities({ ...baseProject, hasMobxStateTree: true }).has("mobx-react-binding"),
+    ).toBe(false);
+    expect(
+      buildCapabilities({ ...baseProject, hasMobxReactObserver: true }).has("mobx-react-binding"),
+    ).toBe(false);
+  });
+
   it("emits `nextjs:15` capability for Next.js 15+ projects", () => {
     const capabilities = buildCapabilities({
       ...baseProject,
@@ -492,5 +562,86 @@ describe("shouldEnableRule react gating", () => {
   it("disables a rule that explicitly requires `react` on a non-React project", () => {
     expect(shouldEnableRule(["react"], undefined, noReactCapabilities, noIgnoredTags)).toBe(false);
     expect(shouldEnableRule(["react"], undefined, reactCapabilities, noIgnoredTags)).toBe(true);
+  });
+});
+
+describe("shouldEnableRule MobX gating", () => {
+  const noIgnoredTags = new Set<string>();
+
+  it("keeps MobX 6 rules off on MobX 5 and unknown future versions", () => {
+    const mobx5Capabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^5.15.0",
+      mobxMajorVersion: 5,
+    });
+    const mobx6Capabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^6.16.1",
+      mobxMajorVersion: 6,
+    });
+    const futureMobxCapabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^7.0.0",
+      mobxMajorVersion: 7,
+    });
+
+    expect(shouldEnableRule(["mobx:6"], undefined, mobx5Capabilities, noIgnoredTags)).toBe(false);
+    expect(shouldEnableRule(["mobx:6"], undefined, mobx6Capabilities, noIgnoredTags)).toBe(true);
+    expect(shouldEnableRule(["mobx:6"], undefined, futureMobxCapabilities, noIgnoredTags)).toBe(
+      false,
+    );
+  });
+
+  it("requires both a supported MobX core and the matching React binding", () => {
+    const mobxReactLiteCapabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^6.16.1",
+      mobxMajorVersion: 6,
+      hasMobxReactLite: true,
+    });
+    const coreOnlyCapabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: "^6.16.1",
+      mobxMajorVersion: 6,
+    });
+    const bindingOnlyCapabilities = buildCapabilities({
+      ...baseProject,
+      mobxVersion: null,
+      mobxMajorVersion: null,
+      hasMobxReactLite: true,
+    });
+
+    expect(
+      shouldEnableRule(
+        ["mobx:4", "mobx-react-binding", "react"],
+        undefined,
+        mobxReactLiteCapabilities,
+        noIgnoredTags,
+      ),
+    ).toBe(true);
+    expect(
+      shouldEnableRule(
+        ["mobx:4", "mobx-react-binding", "react"],
+        undefined,
+        coreOnlyCapabilities,
+        noIgnoredTags,
+      ),
+    ).toBe(false);
+    expect(
+      shouldEnableRule(
+        ["mobx:4", "mobx-react-binding", "react"],
+        undefined,
+        bindingOnlyCapabilities,
+        noIgnoredTags,
+      ),
+    ).toBe(false);
+    expect(
+      shouldEnableRule(
+        ["mobx:4", "mobx-react", "react"],
+        undefined,
+        mobxReactLiteCapabilities,
+        noIgnoredTags,
+      ),
+    ).toBe(false);
   });
 });

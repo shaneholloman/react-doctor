@@ -53,6 +53,10 @@ export const LATEST_KNOWN_REMOTION_MAJOR = 30;
 
 export const EARLIEST_GATED_REMOTION_MAJOR = 4;
 
+export const EARLIEST_GATED_MOBX_MAJOR = 4;
+
+export const LATEST_SUPPORTED_MOBX_MAJOR = 6;
+
 // Max chars of an unparseable oxlint stdout we keep for the error
 // message. oxlint prints a multi-line, framed error to stdout when it
 // can't load the config (e.g. a JS plugin failed to import) — the first
